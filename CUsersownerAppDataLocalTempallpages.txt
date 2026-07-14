@@ -1,0 +1,3073 @@
+import { useState } from 'react'
+import { Plus, X, AlertTriangle, Receipt } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { Input, Select, Field } from '../components/ui/Input'
+import { formatCurrency } from '../utils/formatters'
+import { Budget, Subscription, AppSettings } from '../types'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+const BILLS_COLOR = '#f97316'
+const UNALLOCATED_COLOR = '#D0D5DD'
+const WEEKLY_SENTINEL = 'weekly'
+
+function weeklyFromSub(sub: Subscription): number {
+  if (sub.frequency === 'weekly') return sub.amount
+  if (sub.frequency === 'yearly') return sub.amount / 52
+  return sub.amount / 4
+}
+
+function getWeeklyPaycheck(settings: AppSettings): number {
+  const { paycheckAmount, payFrequency, monthlyIncome } = settings
+  if (paycheckAmount && paycheckAmount > 0) {
+    if (payFrequency === 'weekly') return paycheckAmount
+    if (payFrequency === 'biweekly' || payFrequency === 'semi-monthly') return paycheckAmount / 2
+    if (payFrequency === 'monthly') return paycheckAmount / 4
+    return paycheckAmount / 4
+  }
+  return (monthlyIncome || 0) / 4
+}
+
+
+interface PieSlice {
+  id: string
+  name: string
+  value: number
+  color: string
+  isBills?: boolean
+  isUnallocated?: boolean
+  budgetId?: string
+  categoryId?: string
+  icon?: string
+}
+
+// ─── Add Category Modal ────────────────────────────────────────────────────────
+
+function AddCategoryModal({ open, onClose, weeklyPaycheck, weeklyBills, totalAllocated, existingBudgets }: {
+  open: boolean
+  onClose: () => void
+  weeklyPaycheck: number
+  weeklyBills: number
+  totalAllocated: number
+  existingBudgets: Budget[]
+}) {
+  const { state, dispatch } = useStore()
+  const sym = state.settings.currencySymbol
+  const [form, setForm] = useState({ categoryId: '', amount: '' })
+  const [err, setErr] = useState('')
+
+  const availableCategories = state.categories
+    .filter(c => c.type === 'expense')
+    .filter(c => !existingBudgets.some(b => b.categoryId === c.id))
+
+  const remaining = weeklyPaycheck - weeklyBills - totalAllocated
+
+  function save() {
+    if (!form.categoryId) return setErr('Select a category')
+    const amount = parseFloat(form.amount)
+    if (isNaN(amount) || amount < 0) return setErr('Enter a valid amount')
+    const newTotal = totalAllocated + amount
+    if (newTotal + weeklyBills > weeklyPaycheck) {
+      return setErr(`Exceeds weekly paycheck by ${formatCurrency(newTotal + weeklyBills - weeklyPaycheck, sym)}`)
+    }
+    setErr('')
+    dispatch({
+      type: 'ADD_BUDGET',
+      payload: { id: uuid(), categoryId: form.categoryId, monthlyLimit: amount, month: WEEKLY_SENTINEL },
+    })
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add Budget Category" size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {err && (
+          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+            {err}
+          </div>
+        )}
+
+        {availableCategories.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#8A94A6', textAlign: 'center', padding: '20px 0' }}>
+            All expense categories have been budgeted. Add new categories in Transactions.
+          </p>
+        ) : (
+          <>
+            <Field label="Category">
+              <Select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+                <option value="">Choose a category…</option>
+                {availableCategories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </Select>
+            </Field>
+
+            <Field label="Weekly amount">
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#9CA3AF', pointerEvents: 'none' }}>{sym}</span>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  min="0"
+                  step="1"
+                  value={form.amount}
+                  onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setErr('') }}
+                  style={{ paddingLeft: 28 }}
+                  autoFocus
+                />
+              </div>
+            </Field>
+
+            <p style={{ fontSize: 12, color: '#8A94A6' }}>
+              {remaining > 0
+                ? `${formatCurrency(remaining, sym)} of your weekly paycheck is still unallocated.`
+                : 'Your weekly paycheck is fully allocated.'}
+            </p>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Button onClick={save} style={{ flex: 1 }}>Add to Budget</Button>
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+export function Budgets() {
+  const { state, dispatch } = useStore()
+  const sym = state.settings.currencySymbol
+
+  const weeklyPaycheck = getWeeklyPaycheck(state.settings)
+  const activeSubs = state.subscriptions.filter(s => s.status === 'active')
+  const weeklyBills = activeSubs.reduce((s, sub) => s + weeklyFromSub(sub), 0)
+
+  const weeklyBudgets = state.budgets.filter(b => b.month === WEEKLY_SENTINEL)
+  const totalAllocated = weeklyBudgets.reduce((s, b) => s + b.monthlyLimit, 0)
+  const remaining = weeklyPaycheck - weeklyBills - totalAllocated
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [editForm, setEditForm] = useState({ amount: '' })
+  const [editErr, setEditErr] = useState('')
+
+  // ── Build pie slices ──────────────────────────────────────────────────────
+
+  const slices: PieSlice[] = []
+
+  if (weeklyBills > 0) {
+    slices.push({ id: 'bills', name: 'Bills', value: weeklyBills, color: BILLS_COLOR, isBills: true })
+  }
+
+  for (const budget of weeklyBudgets) {
+    if (budget.monthlyLimit <= 0) continue
+    const cat = state.categories.find(c => c.id === budget.categoryId)
+    slices.push({
+      id: budget.id,
+      name: cat?.name || 'Unknown',
+      value: budget.monthlyLimit,
+      color: cat?.color || '#8A94A6',
+      budgetId: budget.id,
+      categoryId: budget.categoryId,
+      icon: cat?.icon,
+    })
+  }
+
+  if (remaining > 0) {
+    slices.push({ id: 'unallocated', name: 'Unallocated', value: remaining, color: UNALLOCATED_COLOR, isUnallocated: true })
+  }
+
+  const totalPie = slices.reduce((s, sl) => s + sl.value, 0)
+  const selectedSlice = slices.find(s => s.id === selectedId) ?? null
+  const selectedBudget = selectedSlice?.budgetId ? weeklyBudgets.find(b => b.id === selectedSlice.budgetId) : undefined
+  // ── Interactions ──────────────────────────────────────────────────────────
+
+  function handleSliceClick(slice: PieSlice) {
+    if (slice.isUnallocated) return
+    setSelectedId(prev => prev === slice.id ? null : slice.id)
+    setEditErr('')
+    if (slice.budgetId) {
+      const b = weeklyBudgets.find(wb => wb.id === slice.budgetId)
+      setEditForm({ amount: b?.monthlyLimit.toString() || '0' })
+    }
+  }
+
+  function handleSaveEdit() {
+    if (!selectedBudget) return
+    const newAmount = parseFloat(editForm.amount)
+    if (isNaN(newAmount) || newAmount < 0) return setEditErr('Enter a valid amount')
+    const otherAllocated = totalAllocated - selectedBudget.monthlyLimit
+    if (otherAllocated + newAmount + weeklyBills > weeklyPaycheck) {
+      return setEditErr(`Exceeds weekly paycheck by ${formatCurrency(otherAllocated + newAmount + weeklyBills - weeklyPaycheck, sym)}`)
+    }
+    setEditErr('')
+    dispatch({ type: 'UPDATE_BUDGET', payload: { ...selectedBudget, monthlyLimit: newAmount } })
+    setSelectedId(null)
+  }
+
+  function handleDeleteBudget() {
+    if (!selectedBudget) return
+    if (confirm('Remove this budget category?')) {
+      dispatch({ type: 'DELETE_BUDGET', payload: selectedBudget.id })
+      setSelectedId(null)
+    }
+  }
+
+  // ── Empty state: no paycheck set ──────────────────────────────────────────
+
+  if (weeklyPaycheck <= 0) {
+    return (
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>This Week's Budget</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Allocate your weekly paycheck across categories</p>
+        </div>
+        <Card style={{ padding: '60px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 40, marginBottom: 16 }}>💰</p>
+          <p style={{ fontSize: 16, fontWeight: 600, color: NAVY, marginBottom: 8 }}>Set your paycheck amount first</p>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
+            Go to Settings to enter your paycheck amount and pay frequency, then come back to build your weekly budget.
+          </p>
+          <Button variant="secondary" onClick={() => { window.location.href = '/settings' }}>Go to Settings</Button>
+        </Card>
+      </div>
+    )
+  }
+
+  const billsOverPaycheck = weeklyBills > weeklyPaycheck
+  const fullyAllocated = remaining <= 0
+  const overAllocated = remaining < 0
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>This Week's Budget</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Click a slice to edit your weekly allocation</p>
+        </div>
+        <Button onClick={() => setShowAddModal(true)}><Plus size={15} /> Add Category</Button>
+      </div>
+
+      {/* Bills overage warning */}
+      {billsOverPaycheck && (
+        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AlertTriangle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
+          <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>
+            Your weekly bills ({formatCurrency(weeklyBills, sym)}) exceed your weekly paycheck ({formatCurrency(weeklyPaycheck, sym)}). Review your bills or update your paycheck in Settings.
+          </p>
+        </div>
+      )}
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {[
+          { label: 'Weekly Paycheck', value: formatCurrency(weeklyPaycheck, sym), color: NAVY, sub: undefined },
+          { label: 'Weekly Bills', value: formatCurrency(weeklyBills, sym), color: BILLS_COLOR, sub: undefined },
+          { label: 'Allocated', value: formatCurrency(totalAllocated, sym), color: '#4A6CF7', sub: undefined },
+          {
+            label: 'Left to Budget This Week',
+            value: formatCurrency(Math.abs(remaining), sym),
+            color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY,
+            sub: overAllocated ? '⚠ Over budget' : fullyAllocated ? '✓ Fully allocated' : undefined,
+          },
+        ].map(s => (
+          <Card key={s.label} style={{ padding: '16px 18px', textAlign: 'center' }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</p>
+            {s.sub && <p style={{ fontSize: 11, color: s.color, marginTop: 4 }}>{s.sub}</p>}
+          </Card>
+        ))}
+      </div>
+
+      {/* Main layout: chart + panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
+
+        {/* Pie chart card */}
+        <Card style={{ padding: '24px' }}>
+          {slices.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '52px 0' }}>
+              <p style={{ fontSize: 36, marginBottom: 12 }}>🥧</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 6 }}>No categories yet</p>
+              <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 20 }}>
+                Add budget categories to start splitting your {formatCurrency(weeklyPaycheck, sym)}/week paycheck.
+              </p>
+              <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Category</Button>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center', marginBottom: 4 }}>
+                Weekly Paycheck — {formatCurrency(weeklyPaycheck, sym)}
+              </p>
+
+              {/* Chart with center label */}
+              <div style={{ position: 'relative' }}>
+                <ResponsiveContainer width="100%" height={310}>
+                  <PieChart>
+                    <Pie
+                      data={slices}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={75}
+                      outerRadius={130}
+                      paddingAngle={slices.length > 1 ? 2 : 0}
+                      dataKey="value"
+                      onClick={(_data, index) => handleSliceClick(slices[index])}
+                      style={{ cursor: 'pointer', outline: 'none' }}
+                    >
+                      {slices.map((slice) => {
+                        const isSelected = selectedId === slice.id
+                        return (
+                          <Cell
+                            key={slice.id}
+                            fill={slice.color}
+                            stroke={isSelected ? slice.color : slice.isBills ? '#c2410c' : slice.isUnallocated ? '#B8BEC8' : 'white'}
+                            strokeWidth={isSelected ? 4 : slice.isBills ? 2.5 : slice.isUnallocated ? 0 : 1}
+                            opacity={selectedId && !isSelected ? 0.45 : 1}
+                          />
+                        )
+                      })}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.[0]) return null
+                        const d = payload[0].payload as PieSlice
+                        const pct = totalPie > 0 ? ((d.value / totalPie) * 100).toFixed(1) : '0'
+                        return (
+                          <div style={{
+                            background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8,
+                            padding: '10px 14px', fontSize: 12,
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                          }}>
+                            <p style={{ fontWeight: 600, color: NAVY, marginBottom: 4 }}>
+                              {d.icon ? `${d.icon} ` : ''}{d.name}
+                            </p>
+                            <p style={{ color: d.color, fontWeight: 600, marginBottom: 2 }}>
+                              {formatCurrency(d.value, sym)}/week
+                            </p>
+                            <p style={{ color: '#8A94A6' }}>{pct}% of paycheck</p>
+                          </div>
+                        )
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                {/* Donut center label */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    {selectedSlice && !selectedSlice.isUnallocated ? (
+                      <>
+                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>{selectedSlice.icon || ''} {selectedSlice.name}</p>
+                        <p style={{ fontSize: 22, fontWeight: 700, color: selectedSlice.color }}>
+                          {formatCurrency(selectedSlice.value, sym)}
+                        </p>
+                        <p style={{ fontSize: 11, color: '#8A94A6' }}>
+                          {totalPie > 0 ? ((selectedSlice.value / totalPie) * 100).toFixed(0) : 0}% of check
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>per week</p>
+                        <p style={{ fontSize: 22, fontWeight: 700, color: NAVY }}>
+                          {formatCurrency(weeklyPaycheck, sym)}
+                        </p>
+                        <p style={{ fontSize: 11, color: fullyAllocated ? GREEN : '#8A94A6' }}>
+                          {fullyAllocated ? '✓ fully allocated' : `${formatCurrency(Math.max(0, remaining), sym)} left`}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: 12, justifyContent: 'center' }}>
+                {slices.map(s => {
+                  const pct = totalPie > 0 ? ((s.value / totalPie) * 100).toFixed(0) : '0'
+                  const isSelected = selectedId === s.id
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => handleSliceClick(s)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
+                        background: isSelected ? s.color + '14' : 'none',
+                        border: `1px solid ${isSelected ? s.color + '40' : 'transparent'}`,
+                        cursor: s.isUnallocated ? 'default' : 'pointer',
+                        padding: '3px 8px', borderRadius: 20,
+                        opacity: selectedId && !isSelected ? 0.5 : 1,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                      <span style={{ color: '#6b7280' }}>{s.icon ? `${s.icon} ` : ''}{s.name}</span>
+                      <span style={{ color: NAVY, fontWeight: 600 }}>{pct}%</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </Card>
+
+        {/* Details / edit panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {!selectedSlice ? (
+            /* Default: remaining summary */
+            <Card style={{ padding: '24px' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
+                Left to budget from this week's paycheck
+              </p>
+              <p style={{
+                fontSize: 38, fontWeight: 700, letterSpacing: '-1.5px', marginBottom: 4,
+                color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY,
+              }}>
+                {formatCurrency(Math.abs(remaining), sym)}
+              </p>
+              <p style={{ fontSize: 12, color: '#8A94A6', marginBottom: 20 }}>
+                {overAllocated
+                  ? `Over-allocated by ${formatCurrency(-remaining, sym)}`
+                  : fullyAllocated
+                    ? 'Your full paycheck is allocated.'
+                    : `from your ${formatCurrency(weeklyPaycheck, sym)} weekly paycheck`}
+              </p>
+
+              {overAllocated && (
+                <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>
+                  Reduce a category allocation to fix the over-budget.
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: '#8A94A6' }}>Paycheck</span>
+                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(weeklyPaycheck, sym)}</span>
+                </div>
+                {weeklyBills > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#8A94A6' }}>Bills</span>
+                    <span style={{ color: BILLS_COLOR, fontWeight: 500 }}>− {formatCurrency(weeklyBills, sym)}</span>
+                  </div>
+                )}
+                {totalAllocated > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#8A94A6' }}>Categories</span>
+                    <span style={{ color: '#4A6CF7', fontWeight: 500 }}>− {formatCurrency(totalAllocated, sym)}</span>
+                  </div>
+                )}
+                <div style={{ height: 1, background: '#E4E4E4' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                  <span style={{ color: NAVY, fontWeight: 600 }}>Remaining</span>
+                  <span style={{ color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY, fontWeight: 700 }}>
+                    {formatCurrency(remaining, sym)}
+                  </span>
+                </div>
+              </div>
+
+              {weeklyBudgets.length === 0 && (
+                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 20, lineHeight: 1.6 }}>
+                  <strong style={{ color: GREEN }}>Tip:</strong> Bills are automatically pulled from your Bills list. Use "Add Category" to allocate the rest of your paycheck.
+                </p>
+              )}
+
+              {slices.length > 0 && !fullyAllocated && (
+                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 16 }}>
+                  Click a slice to adjust its weekly allocation.
+                </p>
+              )}
+            </Card>
+
+          ) : selectedSlice.isBills ? (
+            /* Bills breakdown panel */
+            <Card style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: `${BILLS_COLOR}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Receipt size={17} style={{ color: BILLS_COLOR }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Bills</p>
+                    <p style={{ fontSize: 11, color: '#8A94A6' }}>Fixed weekly obligations</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: 30, fontWeight: 700, color: BILLS_COLOR, marginBottom: 2 }}>
+                {formatCurrency(weeklyBills, sym)}
+              </p>
+              <p style={{ fontSize: 12, color: '#8A94A6', marginBottom: 20 }}>
+                per week · {weeklyPaycheck > 0 ? ((weeklyBills / weeklyPaycheck) * 100).toFixed(1) : 0}% of paycheck
+              </p>
+
+              <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                Breakdown
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {activeSubs.map(sub => {
+                  const cat = state.categories.find(c => c.id === sub.categoryId)
+                  return (
+                    <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{cat?.icon}</span> {sub.name}
+                      </span>
+                      <span style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>
+                        {formatCurrency(weeklyFromSub(sub), sym)}/wk
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 16 }}>
+                Manage bills in the Bills section. This slice is calculated automatically.
+              </p>
+            </Card>
+
+          ) : selectedSlice.isUnallocated ? (
+            /* Unallocated panel */
+            <Card style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Unallocated</p>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+              <p style={{ fontSize: 30, fontWeight: 700, color: '#8A94A6', marginBottom: 8 }}>
+                {formatCurrency(remaining, sym)}
+              </p>
+              <p style={{ fontSize: 13, color: '#8A94A6', lineHeight: 1.6 }}>
+                This portion of your weekly paycheck hasn't been assigned to a category. Add categories to budget it out.
+              </p>
+              <Button style={{ marginTop: 20, width: '100%' }} onClick={() => { setSelectedId(null); setShowAddModal(true) }}>
+                <Plus size={14} /> Add Category
+              </Button>
+            </Card>
+
+          ) : (
+            /* Category edit panel */
+            <Card style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8,
+                    background: (selectedSlice.color || GREEN) + '20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                  }}>
+                    {selectedSlice.icon || '📦'}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{selectedSlice.name}</p>
+                    <p style={{ fontSize: 11, color: '#8A94A6' }}>
+                      {totalPie > 0 ? ((selectedSlice.value / totalPie) * 100).toFixed(1) : 0}% of this week's paycheck
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+
+              <Field label="Weekly allocation">
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#9CA3AF', pointerEvents: 'none' }}>{sym}</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={editForm.amount}
+                    onChange={e => { setEditForm({ amount: e.target.value }); setEditErr('') }}
+                    style={{ paddingLeft: 28, fontSize: 15 }}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit() }}
+                  />
+                </div>
+              </Field>
+
+              {editErr && (
+                <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 12 }}>
+                  {editErr}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <Button onClick={handleSaveEdit} style={{ flex: 1 }}>Save</Button>
+                <Button variant="secondary" onClick={() => setSelectedId(null)}>Cancel</Button>
+              </div>
+
+              <button
+                onClick={handleDeleteBudget}
+                style={{ marginTop: 14, background: 'none', border: 'none', fontSize: 12, color: '#dc2626', cursor: 'pointer', padding: 0, display: 'block' }}
+              >
+                Remove this category
+              </button>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Add Category Modal */}
+      {showAddModal && (
+        <AddCategoryModal
+          open={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          weeklyPaycheck={weeklyPaycheck}
+          weeklyBills={weeklyBills}
+          totalAllocated={totalAllocated}
+          existingBudgets={weeklyBudgets}
+        />
+      )}
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { Plus, Edit2, Trash2, PlusCircle } from 'lucide-react'
+import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
+import { Input, Select, Textarea, Field } from '../components/ui/Input'
+import { formatCurrency, daysUntil } from '../utils/formatters'
+import { Goal, GoalType } from '../types'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+const TEMPLATES = [
+  { key: 'emergency_fund', label: '🛡️ Emergency Fund', type: 'emergency_fund' as GoalType, color: GREEN },
+  { key: 'down_payment', label: '🏠 Home Down Payment', type: 'savings' as GoalType, color: '#4A6CF7' },
+  { key: 'debt_payoff', label: '💳 Pay Off Debt', type: 'debt_payoff' as GoalType, color: '#ef4444' },
+  { key: 'retirement', label: '🏖️ Retirement', type: 'retirement' as GoalType, color: '#8b5cf6' },
+  { key: 'vacation', label: '✈️ Vacation', type: 'purchase' as GoalType, color: '#f59e0b' },
+  { key: 'new_car', label: '🚗 New Car', type: 'purchase' as GoalType, color: '#0ea5e9' },
+  { key: 'investment', label: '📈 Investment Goal', type: 'investment' as GoalType, color: '#a78bfa' },
+  { key: 'custom', label: '⭐ Custom Goal', type: 'savings' as GoalType, color: '#64748b' },
+]
+
+function GoalModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Goal }) {
+  const { state, dispatch } = useStore()
+  const [step, setStep] = useState(initial ? 1 : 0)
+  const [template, setTemplate] = useState(initial?.template || '')
+  const [form, setForm] = useState({
+    name: initial?.name || '',
+    targetAmount: initial?.targetAmount?.toString() || '',
+    currentAmount: initial?.currentAmount?.toString() || '0',
+    targetDate: initial?.targetDate || '',
+    type: initial?.type || 'savings' as GoalType,
+    color: initial?.color || GREEN,
+    accountId: initial?.accountId || '',
+    notes: initial?.notes || '',
+  })
+  const [err, setErr] = useState('')
+
+  function selectTemplate(t: typeof TEMPLATES[0]) {
+    setTemplate(t.key)
+    setForm(f => ({ ...f, type: t.type, color: t.color, name: t.label.split(' ').slice(1).join(' ') }))
+    setStep(1)
+  }
+
+  function save() {
+    if (!form.name.trim()) return setErr('Name is required')
+    const target = parseFloat(form.targetAmount)
+    if (isNaN(target) || target <= 0) return setErr('Enter a valid target amount')
+    const current = parseFloat(form.currentAmount) || 0
+    setErr('')
+    const goal: Goal = {
+      id: initial?.id || uuid(),
+      name: form.name.trim(),
+      targetAmount: target,
+      currentAmount: current,
+      targetDate: form.targetDate || undefined,
+      type: form.type,
+      color: form.color,
+      accountId: form.accountId || undefined,
+      notes: form.notes,
+      template,
+    }
+    dispatch({ type: initial ? 'UPDATE_GOAL' : 'ADD_GOAL', payload: goal })
+    onClose()
+  }
+
+  const COLORS = [GREEN, '#4A6CF7', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899', '#64748b']
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit Goal' : 'New Goal'}>
+      {step === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 13, color: '#8A94A6' }}>Choose a goal template to get started:</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {TEMPLATES.map(t => (
+              <button key={t.key} onClick={() => selectTemplate(t)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '12px',
+                  borderRadius: 10, border: '1px solid #E4E4E4', background: '#FAFAFA',
+                  cursor: 'pointer', fontSize: 13, color: NAVY, textAlign: 'left',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = GREEN; (e.currentTarget as HTMLElement).style.background = 'rgba(6,198,138,0.05)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#E4E4E4'; (e.currentTarget as HTMLElement).style.background = '#FAFAFA' }}
+              >{t.label}</button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+          <Field label="Goal Name">
+            <Input placeholder="e.g. Emergency Fund" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Target Amount">
+              <Input type="number" placeholder="10000" min="1" value={form.targetAmount} onChange={e => setForm(f => ({ ...f, targetAmount: e.target.value }))} />
+            </Field>
+            <Field label="Current Amount">
+              <Input type="number" placeholder="0" min="0" value={form.currentAmount} onChange={e => setForm(f => ({ ...f, currentAmount: e.target.value }))} />
+            </Field>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Target Date (optional)">
+              <Input type="date" value={form.targetDate} onChange={e => setForm(f => ({ ...f, targetDate: e.target.value }))} />
+            </Field>
+            <Field label="Linked Account (optional)">
+              <Select value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+                <option value="">None</option>
+                {state.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Color">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {COLORS.map(c => (
+                <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                  style={{
+                    width: 28, height: 28, borderRadius: '50%', background: c, border: 'none', cursor: 'pointer',
+                    outline: form.color === c ? `3px solid ${c}` : 'none',
+                    outlineOffset: 2,
+                    transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.15s',
+                  }} />
+              ))}
+            </div>
+          </Field>
+          <Field label="Notes (optional)">
+            <Textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </Field>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Button onClick={save} style={{ flex: 1 }}>Save Goal</Button>
+            {!initial && <Button variant="secondary" onClick={() => setStep(0)}>Back</Button>}
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function AddFundsModal({ goal, onClose }: { goal: Goal; onClose: () => void }) {
+  const { dispatch } = useStore()
+  const [amount, setAmount] = useState('')
+  function save() {
+    const n = parseFloat(amount)
+    if (!isNaN(n) && n > 0) {
+      dispatch({ type: 'UPDATE_GOAL', payload: { ...goal, currentAmount: Math.min(goal.targetAmount, goal.currentAmount + n) } })
+      onClose()
+    }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Add Funds to ${goal.name}`} size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Field label="Amount to Add">
+          <Input type="number" placeholder="0.00" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+        </Field>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button onClick={save} style={{ flex: 1 }}>Add Funds</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+export function Goals() {
+  const { state, dispatch } = useStore()
+  const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<Goal | null>(null)
+  const [addFunds, setAddFunds] = useState<Goal | null>(null)
+  const sym = state.settings.currencySymbol
+
+  function deleteGoal(id: string) {
+    if (confirm('Delete this goal?')) dispatch({ type: 'DELETE_GOAL', payload: id })
+  }
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Goals</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{state.goals.length} active goal{state.goals.length !== 1 ? 's' : ''}</p>
+        </div>
+        <Button onClick={() => setShowAdd(true)}><Plus size={15} /> New Goal</Button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {state.goals.map(goal => {
+          const pct = goal.targetAmount > 0 ? Math.min(100, (goal.currentAmount / goal.targetAmount) * 100) : 0
+          const remaining = goal.targetAmount - goal.currentAmount
+          const days = goal.targetDate ? daysUntil(goal.targetDate) : null
+          const radialData = [{ value: pct, fill: goal.color }]
+          return (
+            <Card key={goal.id} style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{goal.name}</h3>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <IconButton size="sm" onClick={() => setEditing(goal)}><Edit2 size={13} /></IconButton>
+                  <IconButton size="sm" variant="danger" onClick={() => deleteGoal(goal.id)}><Trash2 size={13} /></IconButton>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                <div style={{ position: 'relative', width: 80, height: 80, flexShrink: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadialBarChart cx="50%" cy="50%" innerRadius="70%" outerRadius="100%" data={radialData} startAngle={90} endAngle={-270}>
+                      <RadialBar background={{ fill: '#E4E4E4' }} dataKey="value" cornerRadius={10} />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{Math.round(pct)}%</span>
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 22, fontWeight: 700, color: goal.color }}>{pct.toFixed(0)}%</p>
+                  <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>{formatCurrency(goal.currentAmount, sym)} saved</p>
+                  <p style={{ fontSize: 12, color: '#8A94A6' }}>{formatCurrency(goal.targetAmount, sym)} goal</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#8A94A6' }}>Remaining</span>
+                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(Math.max(0, remaining), sym)}</span>
+                </div>
+                {days !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#8A94A6' }}>Days left</span>
+                    <span style={{ color: days < 30 ? '#f59e0b' : NAVY, fontWeight: 500 }}>{days > 0 ? `${days} days` : 'Past due'}</span>
+                  </div>
+                )}
+              </div>
+
+              {pct < 100 && (
+                <Button variant="secondary" onClick={() => setAddFunds(goal)} style={{ marginTop: 14, width: '100%' }}>
+                  <PlusCircle size={14} /> Add Funds
+                </Button>
+              )}
+              {pct >= 100 && (
+                <div style={{ marginTop: 14, padding: '9px', textAlign: 'center', fontSize: 13, color: GREEN, background: 'rgba(6,198,138,0.08)', borderRadius: 8 }}>
+                  🎉 Goal Reached!
+                </div>
+              )}
+            </Card>
+          )
+        })}
+
+        {state.goals.length === 0 && (
+          <div style={{ gridColumn: 'span 3' }}>
+            <Card style={{ padding: '48px', textAlign: 'center' }}>
+              <p style={{ color: '#8A94A6', marginBottom: 16, fontSize: 14 }}>No goals yet. Set your first financial goal!</p>
+              <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Create Goal</Button>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {showAdd && <GoalModal open onClose={() => setShowAdd(false)} />}
+      {editing && <GoalModal open onClose={() => setEditing(null)} initial={editing} />}
+      {addFunds && <AddFundsModal goal={addFunds} onClose={() => setAddFunds(null)} />}
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { TrendingUp, TrendingDown, Plus } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { formatCurrency, formatShortDate } from '../utils/formatters'
+import { getTotalAssets, getTotalLiabilities, getNetWorth } from '../utils/calculations'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+const tt = {
+  contentStyle: { background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8, fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
+}
+
+export function NetWorth() {
+  const { state, dispatch } = useStore()
+  const { accounts, netWorthHistory, settings } = state
+  const sym = settings.currencySymbol
+
+  const netWorth = getNetWorth(accounts)
+  const assets = getTotalAssets(accounts)
+  const liabilities = getTotalLiabilities(accounts)
+
+  const chartData = netWorthHistory.map(e => ({
+    date: formatShortDate(e.date),
+    netWorth: e.assets - e.liabilities,
+    assets: e.assets,
+    liabilities: e.liabilities,
+  }))
+
+  const prev = netWorthHistory.length >= 2 ? netWorthHistory[netWorthHistory.length - 2] : null
+  const prevNW = prev ? prev.assets - prev.liabilities : null
+  const change = prevNW !== null ? netWorth - prevNW : null
+  const changePct = prevNW && prevNW !== 0 ? ((netWorth - prevNW) / Math.abs(prevNW)) * 100 : null
+
+  function snapshotNow() {
+    const d = new Date()
+    const date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    dispatch({ type: 'ADD_NET_WORTH_ENTRY', payload: { id: uuid(), date, assets, liabilities } })
+  }
+
+  const donutData = [
+    { name: 'Assets', value: assets, color: GREEN },
+    { name: 'Liabilities', value: liabilities, color: '#ef4444' },
+  ]
+
+  const assetAccounts = accounts.filter(a => a.balance > 0)
+  const liabilityAccounts = accounts.filter(a => a.balance < 0)
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Net Worth</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Track your financial progress over time</p>
+        </div>
+        <Button variant="secondary" onClick={snapshotNow}><Plus size={15} /> Snapshot Now</Button>
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        <Card style={{ padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Net Worth</p>
+          <p style={{ fontSize: 30, fontWeight: 700, color: netWorth >= 0 ? NAVY : '#dc2626', letterSpacing: '-1px' }}>{formatCurrency(netWorth, sym)}</p>
+          {change !== null && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 6, fontSize: 12, color: change >= 0 ? GREEN : '#dc2626' }}>
+              {change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {change >= 0 ? '+' : ''}{formatCurrency(change, sym)} ({changePct?.toFixed(1)}%)
+            </div>
+          )}
+        </Card>
+        <Card style={{ padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Assets</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: GREEN }}>{formatCurrency(assets, sym)}</p>
+        </Card>
+        <Card style={{ padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Liabilities</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#dc2626' }}>{formatCurrency(liabilities, sym)}</p>
+        </Card>
+      </div>
+
+      {/* Chart + Donut */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Net Worth Over Time</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
+              <XAxis dataKey="date" tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip {...tt} formatter={(v: any) => formatCurrency(v, sym)} />
+              <Line type="monotone" dataKey="netWorth" stroke={GREEN} strokeWidth={2.5} dot={{ fill: GREEN, r: 4 }} name="Net Worth" />
+              <Line type="monotone" dataKey="assets" stroke="#4A6CF7" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Assets" />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Allocation</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <PieChart>
+              <Pie data={donutData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3}>
+                {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
+              </Pie>
+              <Tooltip {...tt} formatter={(v: any) => formatCurrency(v, sym)} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {donutData.map(d => (
+              <div key={d.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color }} />
+                  <span style={{ color: '#8A94A6' }}>{d.name}</span>
+                </div>
+                <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(d.value, sym)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Assets & Liabilities */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 14 }}>Assets</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {assetAccounts.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 4, height: 32, borderRadius: 99, background: a.color }} />
+                  <div>
+                    <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                  </div>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: GREEN }}>{formatCurrency(a.balance, sym)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #E4E4E4', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#8A94A6' }}>Total Assets</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: GREEN }}>{formatCurrency(assets, sym)}</span>
+          </div>
+        </Card>
+
+        <Card style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Liabilities</p>
+            <Button size="sm" variant="secondary" onClick={() => {
+              window.location.href = '/accounts'
+            }}><Plus size={11} /> Add Liability</Button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {liabilityAccounts.length === 0 && <p style={{ color: '#8A94A6', fontSize: 13 }}>No liabilities — add a credit card, loan, or mortgage to track debt.</p>}
+            {liabilityAccounts.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 4, height: 32, borderRadius: 99, background: a.color }} />
+                  <div>
+                    <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                  </div>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#dc2626' }}>{formatCurrency(Math.abs(a.balance), sym)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #E4E4E4', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#8A94A6' }}>Total Liabilities</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#dc2626' }}>{formatCurrency(liabilities, sym)}</span>
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { Plus, Edit2, Trash2, CreditCard, PiggyBank, TrendingUp, Wallet, Building } from 'lucide-react'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
+import { Input, Select, Field } from '../components/ui/Input'
+import { formatCurrency } from '../utils/formatters'
+import { Account, AccountType } from '../types'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+const TYPE_ICONS: Record<AccountType, any> = {
+  checking: Wallet, savings: PiggyBank, credit: CreditCard,
+  investment: TrendingUp, loan: Building, cash: Wallet,
+  '401k': TrendingUp, ira: TrendingUp,
+}
+
+function AccountModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Account }) {
+  const { dispatch } = useStore()
+  const [form, setForm] = useState({
+    name: initial?.name || '',
+    type: initial?.type || 'checking' as AccountType,
+    balance: initial?.balance?.toString() || '',
+    institution: initial?.institution || '',
+    color: initial?.color || GREEN,
+    interestRate: initial?.interestRate?.toString() || '',
+    returnPercent: initial?.returnPercent?.toString() || '',
+  })
+  const [err, setErr] = useState('')
+
+  function save() {
+    if (!form.name.trim()) return setErr('Name is required')
+    const balance = parseFloat(form.balance)
+    if (isNaN(balance)) return setErr('Enter a valid balance')
+    setErr('')
+    const account: Account = {
+      id: initial?.id || uuid(),
+      name: form.name.trim(),
+      type: form.type,
+      balance: ['credit', 'loan'].includes(form.type) ? -Math.abs(balance) : balance,
+      institution: form.institution || undefined,
+      color: form.color,
+      interestRate: form.interestRate ? parseFloat(form.interestRate) : undefined,
+      returnPercent: form.returnPercent ? parseFloat(form.returnPercent) : undefined,
+    }
+    dispatch({ type: initial ? 'UPDATE_ACCOUNT' : 'ADD_ACCOUNT', payload: account })
+    onClose()
+  }
+
+  const COLORS = [GREEN, '#4A6CF7', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899', '#64748b']
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit Account' : 'Add Account'}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {err && (
+          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+            {err}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Account Name">
+            <Input placeholder="Chase Checking" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </Field>
+          <Field label="Type">
+            <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as AccountType }))}>
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="credit">Credit Card</option>
+              <option value="investment">Investment</option>
+              <option value="401k">401(k)</option>
+              <option value="ira">IRA</option>
+              <option value="loan">Loan</option>
+              <option value="cash">Cash</option>
+            </Select>
+          </Field>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label={['credit','loan'].includes(form.type) ? 'Balance Owed' : 'Current Balance'}>
+            <Input type="number" placeholder="0.00" step="0.01" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} />
+          </Field>
+          <Field label="Institution (optional)">
+            <Input placeholder="Chase Bank" value={form.institution} onChange={e => setForm(f => ({ ...f, institution: e.target.value }))} />
+          </Field>
+        </div>
+        {form.type === 'savings' && (
+          <Field label="Interest Rate % (optional)">
+            <Input type="number" placeholder="4.5" min="0" step="0.1" value={form.interestRate} onChange={e => setForm(f => ({ ...f, interestRate: e.target.value }))} />
+          </Field>
+        )}
+        {['investment','401k','ira'].includes(form.type) && (
+          <Field label="Annual Return % (optional)">
+            <Input type="number" placeholder="7.0" min="0" step="0.1" value={form.returnPercent} onChange={e => setForm(f => ({ ...f, returnPercent: e.target.value }))} />
+          </Field>
+        )}
+        <Field label="Color">
+          <div style={{ display: 'flex', gap: 8 }}>
+            {COLORS.map(c => (
+              <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', background: c, border: 'none', cursor: 'pointer',
+                  outline: form.color === c ? `3px solid ${c}` : 'none',
+                  outlineOffset: 2,
+                  transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
+                  transition: 'all 0.15s',
+                }} />
+            ))}
+          </div>
+        </Field>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button onClick={save} style={{ flex: 1 }}>Save Account</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+export function Accounts() {
+  const { state, dispatch } = useStore()
+  const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<Account | null>(null)
+  const sym = state.settings.currencySymbol
+
+  function deleteAccount(id: string) {
+    if (confirm('Delete this account? Transactions linked to it will remain.')) dispatch({ type: 'DELETE_ACCOUNT', payload: id })
+  }
+
+  const byType = state.accounts.reduce((acc, a) => {
+    const group = ['checking','savings','cash'].includes(a.type) ? 'Cash & Savings'
+      : ['credit','loan'].includes(a.type) ? 'Credit & Loans'
+      : 'Investments'
+    if (!acc[group]) acc[group] = []
+    acc[group].push(a)
+    return acc
+  }, {} as Record<string, Account[]>)
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Accounts</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{state.accounts.length} account{state.accounts.length !== 1 ? 's' : ''}</p>
+        </div>
+        <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Account</Button>
+      </div>
+
+      {/* Summary row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {[
+          { label: 'Cash & Savings', value: state.accounts.filter(a => ['checking','savings','cash'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: GREEN },
+          { label: 'Investments', value: state.accounts.filter(a => ['investment','401k','ira'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: '#4A6CF7' },
+          { label: 'Debt', value: state.accounts.filter(a => ['credit','loan'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: '#dc2626' },
+        ].map(s => (
+          <Card key={s.label} style={{ padding: '18px 20px', textAlign: 'center' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{formatCurrency(s.value, sym)}</p>
+          </Card>
+        ))}
+      </div>
+
+      {Object.entries(byType).map(([group, accs]) => (
+        <div key={group} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{group}</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {accs.map(a => {
+              const Icon = TYPE_ICONS[a.type] || Wallet
+              return (
+                <Card key={a.id} style={{ padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: a.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon size={20} style={{ color: a.color }} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{a.name}</p>
+                        {a.institution && <p style={{ fontSize: 11, color: '#8A94A6' }}>{a.institution}</p>}
+                        <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: 17, fontWeight: 700, color: a.balance < 0 ? '#dc2626' : NAVY }}>
+                        {formatCurrency(a.balance, sym)}
+                      </p>
+                      {a.interestRate && <p style={{ fontSize: 11, color: GREEN }}>{a.interestRate}% APY</p>}
+                      {a.returnPercent && <p style={{ fontSize: 11, color: '#4A6CF7' }}>{a.returnPercent}% return</p>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: '1px solid #EBEBEB' }}>
+                    <IconButton size="sm" onClick={() => setEditing(a)} style={{ width: 'auto', padding: '4px 8px', gap: 4, fontSize: 12, borderRadius: 6 }}>
+                      <Edit2 size={12} /> <span style={{ fontFamily: 'inherit' }}>Edit</span>
+                    </IconButton>
+                    <IconButton size="sm" variant="danger" onClick={() => deleteAccount(a.id)} style={{ width: 'auto', padding: '4px 8px', gap: 4, fontSize: 12, borderRadius: 6 }}>
+                      <Trash2 size={12} /> <span style={{ fontFamily: 'inherit' }}>Delete</span>
+                    </IconButton>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {showAdd && <AccountModal open onClose={() => setShowAdd(false)} />}
+      {editing && <AccountModal open onClose={() => setEditing(null)} initial={editing} />}
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { Plus, Edit2, Trash2, RefreshCw, XCircle, AlertCircle } from 'lucide-react'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
+import { Input, Select, Field } from '../components/ui/Input'
+import { formatCurrency } from '../utils/formatters'
+import { Subscription } from '../types'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+function SubModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Subscription }) {
+  const { state, dispatch } = useStore()
+  const [form, setForm] = useState({
+    name: initial?.name || '',
+    amount: initial?.amount?.toString() || '',
+    frequency: initial?.frequency || 'monthly' as 'weekly'|'monthly'|'yearly',
+    categoryId: initial?.categoryId || state.categories.find(c => c.type === 'expense')?.id || '',
+    status: initial?.status || 'active' as 'active'|'negotiating'|'cancelled',
+  })
+  const [err, setErr] = useState('')
+
+  function save() {
+    if (!form.name.trim()) return setErr('Name is required')
+    const amount = parseFloat(form.amount)
+    if (isNaN(amount) || amount <= 0) return setErr('Enter a valid amount')
+    setErr('')
+    const sub: Subscription = {
+      id: initial?.id || uuid(),
+      name: form.name.trim(),
+      amount,
+      frequency: form.frequency,
+      categoryId: form.categoryId,
+      status: form.status,
+      transactionIds: initial?.transactionIds || [],
+    }
+    dispatch({ type: initial ? 'UPDATE_SUBSCRIPTION' : 'ADD_SUBSCRIPTION', payload: sub })
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit Bill' : 'Add Bill'} size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {err && (
+          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+            {err}
+          </div>
+        )}
+        <Field label="Service Name">
+          <Input placeholder="Netflix" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Amount">
+            <Input type="number" placeholder="0.00" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          </Field>
+          <Field label="Frequency">
+            <Select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value as any }))}>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </Select>
+          </Field>
+        </div>
+        <Field label="Category">
+          <Select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+            {state.categories.filter(c => c.type === 'expense').map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Status">
+          <Select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as any }))}>
+            <option value="active">Active</option>
+            <option value="negotiating">Negotiating</option>
+            <option value="cancelled">Cancelled</option>
+          </Select>
+        </Field>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button onClick={save} style={{ flex: 1 }}>Save</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function monthlyAmount(sub: Subscription): number {
+  if (sub.frequency === 'monthly') return sub.amount
+  if (sub.frequency === 'yearly') return sub.amount / 12
+  return sub.amount * 4.33
+}
+
+const STATUS_CFG = {
+  active: { color: GREEN, bg: 'rgba(6,198,138,0.1)', icon: RefreshCw, label: 'Active' },
+  negotiating: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: AlertCircle, label: 'Negotiating' },
+  cancelled: { color: '#8A94A6', bg: '#EBEBEB', icon: XCircle, label: 'Cancelled' },
+}
+
+export function Subscriptions() {
+  const { state, dispatch } = useStore()
+  const [showAdd, setShowAdd] = useState(false)
+  const [editing, setEditing] = useState<Subscription | null>(null)
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none')
+  const sym = state.settings.currencySymbol
+
+  function deleteSub(id: string) {
+    if (confirm('Remove this subscription?')) dispatch({ type: 'DELETE_SUBSCRIPTION', payload: id })
+  }
+
+  function sortSubs(subs: Subscription[]) {
+    if (sortOrder === 'asc') return [...subs].sort((a, b) => monthlyAmount(a) - monthlyAmount(b))
+    if (sortOrder === 'desc') return [...subs].sort((a, b) => monthlyAmount(b) - monthlyAmount(a))
+    return subs
+  }
+
+  const active = sortSubs(state.subscriptions.filter(s => s.status === 'active'))
+  const negotiating = sortSubs(state.subscriptions.filter(s => s.status === 'negotiating'))
+  const cancelled = sortSubs(state.subscriptions.filter(s => s.status === 'cancelled'))
+
+  const totalMonthly = active.reduce((s, sub) => s + monthlyAmount(sub), 0)
+  const totalYearly = totalMonthly * 12
+
+  const renderSubs = (subs: Subscription[]) => subs.map(sub => {
+    const cat = state.categories.find(c => c.id === sub.categoryId)
+    const cfg = STATUS_CFG[sub.status]
+    const Icon = cfg.icon
+    return (
+      <Card key={sub.id} style={{ padding: '14px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{cat?.icon || '📦'}</div>
+            <div>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: NAVY }}>{sub.name}</p>
+              <p style={{ fontSize: 11, color: '#8A94A6' }}>{cat?.name} · {sub.frequency}</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: NAVY }}>{formatCurrency(sub.amount, sym)}/{sub.frequency === 'monthly' ? 'mo' : sub.frequency === 'yearly' ? 'yr' : 'wk'}</p>
+              {sub.frequency !== 'monthly' && <p style={{ fontSize: 11, color: '#8A94A6' }}>{formatCurrency(monthlyAmount(sub), sym)}/mo</p>}
+            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500, color: cfg.color, background: cfg.bg, padding: '3px 10px', borderRadius: 99 }}>
+              <Icon size={10} /> {cfg.label}
+            </span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <IconButton size="sm" onClick={() => setEditing(sub)}><Edit2 size={13} /></IconButton>
+              <IconButton size="sm" variant="danger" onClick={() => deleteSub(sub.id)}><Trash2 size={13} /></IconButton>
+            </div>
+          </div>
+        </div>
+      </Card>
+    )
+  })
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Bills</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{active.length} active bill{active.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#8A94A6', fontWeight: 500 }}>Sort by:</span>
+            {(['none', 'asc', 'desc'] as const).map((opt) => (
+              <button key={opt} onClick={() => setSortOrder(opt)}
+                style={{
+                  fontSize: 12, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 500,
+                  border: `1px solid ${sortOrder === opt ? GREEN : '#E4E4E4'}`,
+                  background: sortOrder === opt ? 'rgba(6,198,138,0.08)' : '#FAFAFA',
+                  color: sortOrder === opt ? GREEN : '#8A94A6',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (sortOrder !== opt) (e.currentTarget as HTMLElement).style.borderColor = '#C0C8D8' }}
+                onMouseLeave={e => { if (sortOrder !== opt) (e.currentTarget as HTMLElement).style.borderColor = '#E4E4E4' }}
+              >
+                {opt === 'none' ? 'Default' : opt === 'asc' ? 'Low → High' : 'High → Low'}
+              </button>
+            ))}
+          </div>
+          <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Bill</Button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {[
+          { label: 'Monthly Total', value: formatCurrency(totalMonthly, sym), color: NAVY },
+          { label: 'Annual Total', value: formatCurrency(totalYearly, sym), color: '#f59e0b' },
+          { label: 'Active Count', value: String(active.length), color: '#4A6CF7' },
+        ].map(s => (
+          <Card key={s.label} style={{ padding: '18px 20px', textAlign: 'center' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</p>
+          </Card>
+        ))}
+      </div>
+
+      {active.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: GREEN, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Active</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{renderSubs(active)}</div>
+        </div>
+      )}
+      {negotiating.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Negotiating</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{renderSubs(negotiating)}</div>
+        </div>
+      )}
+      {cancelled.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cancelled</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{renderSubs(cancelled)}</div>
+        </div>
+      )}
+
+      {state.subscriptions.length === 0 && (
+        <Card style={{ padding: '48px', textAlign: 'center' }}>
+          <RefreshCw size={32} style={{ color: '#E4E4E4', margin: '0 auto 12px' }} />
+          <p style={{ color: '#8A94A6', marginBottom: 16, fontSize: 14 }}>Track your recurring bills here</p>
+          <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Bill</Button>
+        </Card>
+      )}
+
+      {showAdd && <SubModal open onClose={() => setShowAdd(false)} />}
+      {editing && <SubModal open onClose={() => setEditing(null)} initial={editing} />}
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { formatCurrency, formatMonth } from '../utils/formatters'
+import { getMonthIncome, getMonthExpenses, getSpendingByCategory } from '../utils/calculations'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+const TABS = ['Cash Flow', 'Spending', 'Merchants', 'Summary']
+
+const tt = {
+  contentStyle: { background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8, fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
+}
+
+export function Reports() {
+  const { state } = useStore()
+  const [tab, setTab] = useState('Cash Flow')
+  const { transactions, categories, settings } = state
+  const sym = settings.currencySymbol
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - (11 - i))
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+  })
+
+  const cashFlowData = months.map(m => ({
+    label: new Date(m + '-02').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+    income: getMonthIncome(transactions, m),
+    expenses: getMonthExpenses(transactions, m),
+    net: getMonthIncome(transactions, m) - getMonthExpenses(transactions, m),
+  }))
+
+  const currentMonth = months[months.length - 1]
+  const spendingMap = getSpendingByCategory(transactions, currentMonth)
+  const spendingData = Object.entries(spendingMap)
+    .map(([id, amt]) => ({ name: categories.find(c => c.id === id)?.name || 'Other', value: amt, color: categories.find(c => c.id === id)?.color || '#64748b' }))
+    .sort((a, b) => b.value - a.value)
+
+  const merchantMap: Record<string, number> = {}
+  transactions.filter(t => t.type === 'expense').forEach(t => {
+    const name = t.merchantName || t.description
+    merchantMap[name] = (merchantMap[name] || 0) + t.amount
+  })
+  const merchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 10)
+
+  const summaryData = months.slice(-6).map(m => ({
+    month: formatMonth(m).split(' ')[0],
+    income: getMonthIncome(transactions, m),
+    expenses: getMonthExpenses(transactions, m),
+    savings: Math.max(0, getMonthIncome(transactions, m) - getMonthExpenses(transactions, m)),
+  }))
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Reports</h1>
+        <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Analyze your financial patterns</p>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, background: '#E4E4E4', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+        {TABS.map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            style={{
+              padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+              border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+              background: tab === t ? '#FAFAFA' : 'transparent',
+              color: tab === t ? NAVY : '#8A94A6',
+              boxShadow: tab === t ? '0 1px 4px rgba(27,32,48,0.08)' : 'none',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.color = NAVY }}
+            onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.color = '#8A94A6' }}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'Cash Flow' && (
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>12-Month Income vs Expenses</p>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={cashFlowData} barSize={14}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#D8D8D8" />
+              <XAxis dataKey="label" tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip {...tt} formatter={(v: any) => formatCurrency(v, sym)} />
+              <Legend wrapperStyle={{ fontSize: '12px', color: '#8A94A6' }} />
+              <Bar dataKey="income" name="Income" fill={GREEN} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expenses" name="Expenses" fill="#E4E7EC" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="net" name="Net" fill="#4A6CF7" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      {tab === 'Spending' && (
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Spending by Category — {formatMonth(currentMonth)}</p>
+          {spendingData.length === 0 && <p style={{ color: '#8A94A6', fontSize: 13 }}>No expense data this month.</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {spendingData.map(d => {
+              const max = spendingData[0]?.value || 1
+              return (
+                <div key={d.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: NAVY, fontWeight: 500 }}>{d.name}</span>
+                    <span style={{ color: '#8A94A6' }}>{formatCurrency(d.value, sym)}</span>
+                  </div>
+                  <div style={{ width: '100%', background: '#E4E4E4', borderRadius: 99, height: 6 }}>
+                    <div style={{ height: 6, borderRadius: 99, width: `${(d.value / max) * 100}%`, background: d.color, transition: 'width 0.5s' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+
+      {tab === 'Merchants' && (
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Top Merchants by Spending</p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #E4E4E4' }}>
+                {['#', 'Merchant', 'Total Spent'].map((h, i) => (
+                  <th key={h} style={{ padding: '8px 0', textAlign: i === 2 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {merchants.map(([name, amt], i) => (
+                <tr key={name} style={{ borderBottom: '1px solid #D8D8D8' }}>
+                  <td style={{ padding: '12px 0', color: '#8A94A6' }}>{i + 1}</td>
+                  <td style={{ padding: '12px 0', color: NAVY }}>{name}</td>
+                  <td style={{ padding: '12px 0', textAlign: 'right', color: NAVY, fontWeight: 500 }}>{formatCurrency(amt, sym)}</td>
+                </tr>
+              ))}
+              {merchants.length === 0 && <tr><td colSpan={3} style={{ padding: '32px 0', textAlign: 'center', color: '#8A94A6' }}>No data yet.</td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {tab === 'Summary' && (
+        <Card style={{ padding: '20px 24px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>6-Month Summary</p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #E4E4E4' }}>
+                {['Month','Income','Expenses','Savings','Rate'].map((h, i) => (
+                  <th key={h} style={{ padding: '8px 0', textAlign: i > 0 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {summaryData.map(r => {
+                const rate = r.income > 0 ? Math.round((r.savings / r.income) * 100) : 0
+                return (
+                  <tr key={r.month} style={{ borderBottom: '1px solid #D8D8D8' }}>
+                    <td style={{ padding: '12px 0', color: NAVY, fontWeight: 500 }}>{r.month}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right', color: GREEN, fontWeight: 500 }}>{formatCurrency(r.income, sym)}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right', color: NAVY }}>{formatCurrency(r.expenses, sym)}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right', color: '#4A6CF7', fontWeight: 500 }}>{formatCurrency(r.savings, sym)}</td>
+                    <td style={{ padding: '12px 0', textAlign: 'right' }}>
+                      <span style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 500,
+                        color: rate >= 20 ? GREEN : rate >= 10 ? '#f59e0b' : '#8A94A6',
+                        background: rate >= 20 ? 'rgba(6,198,138,0.1)' : rate >= 10 ? 'rgba(245,158,11,0.1)' : '#D8D8D8',
+                      }}>
+                        {rate}%
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  )
+}
+import { useState } from 'react'
+import { DollarSign, Trash2, ArrowRight, CheckCircle } from 'lucide-react'
+import { Button } from '../components/ui/Button'
+import { Input, Field } from '../components/ui/Input'
+import { useStore } from '../store/useStore'
+import { supabase } from '../lib/supabase'
+import { getInitialData } from '../store/initialData'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+interface OnboardingProps {
+  onComplete: () => void
+}
+
+export function Onboarding({ onComplete }: OnboardingProps) {
+  const { dispatch } = useStore()
+  const [step, setStep] = useState<'choose' | 'clearing' | 'name'>('choose')
+  const [appName, setAppName] = useState('')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+
+  async function startFresh() {
+    setStep('clearing')
+    await Promise.all([
+      supabase.from('transactions').delete().neq('id', 'x'),
+      supabase.from('budgets').delete().neq('id', 'x'),
+      supabase.from('goals').delete().neq('id', 'x'),
+      supabase.from('net_worth_history').delete().neq('id', 'x'),
+      supabase.from('subscriptions').delete().neq('id', 'x'),
+    ])
+    await supabase.from('accounts').delete().neq('id', 'x')
+    await supabase.from('categories').delete().neq('id', 'x')
+    localStorage.removeItem('budget_app_v1')
+    setStep('name')
+  }
+
+  async function finish() {
+    const name = appName.trim() || 'My Budget'
+    const initial = getInitialData()
+    const cleanState = {
+      ...initial,
+      accounts: [],
+      transactions: [],
+      budgets: [],
+      goals: [],
+      netWorthHistory: [],
+      subscriptions: [],
+      settings: { ...initial.settings, name, currencySymbol: currencySymbol || '$' },
+    }
+    const { seedDatabase } = await import('../lib/db')
+    await seedDatabase(cleanState)
+    dispatch({ type: 'SET_STATE', payload: cleanState })
+    onComplete()
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: '#D8D8D8',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
+
+        {/* Logo + title */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 18,
+            background: GREEN,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 20px',
+            boxShadow: '0 8px 24px rgba(6,198,138,0.35)',
+          }}>
+            <DollarSign size={32} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: 30, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Welcome</h1>
+          <p style={{ fontSize: 14, color: '#8A94A6', marginTop: 8 }}>Let's set up your personal finance app</p>
+        </div>
+
+        {/* Step: choose */}
+        {step === 'choose' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button
+              onClick={startFresh}
+              style={{
+                width: '100%', padding: '20px 22px',
+                background: '#FAFAFA', border: `2px solid ${GREEN}`,
+                borderRadius: 16, textAlign: 'left', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(6,198,138,0.06)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#FAFAFA' }}
+            >
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Trash2 size={16} color={GREEN} /> Start Fresh
+                </p>
+                <p style={{ fontSize: 13, color: '#8A94A6' }}>Clear demo data and set up your real accounts</p>
+              </div>
+              <ArrowRight size={18} color="#C0C8D8" />
+            </button>
+
+            <button
+              onClick={onComplete}
+              style={{
+                width: '100%', padding: '20px 22px',
+                background: '#FAFAFA', border: '1px solid #E4E4E4',
+                borderRadius: 16, textAlign: 'left', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F0F0F0' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#FAFAFA' }}
+            >
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <CheckCircle size={16} color={GREEN} /> Explore Demo
+                </p>
+                <p style={{ fontSize: 13, color: '#8A94A6' }}>Browse with sample data, replace it later</p>
+              </div>
+              <ArrowRight size={18} color="#C0C8D8" />
+            </button>
+          </div>
+        )}
+
+        {/* Step: clearing */}
+        {step === 'clearing' && (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              border: `3px solid ${GREEN}`, borderTopColor: 'transparent',
+              margin: '0 auto 16px',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+            <p style={{ color: '#8A94A6', fontSize: 14 }}>Clearing demo data…</p>
+          </div>
+        )}
+
+        {/* Step: name */}
+        {step === 'name' && (
+          <div style={{
+            background: '#FAFAFA', border: '1px solid #E4E4E4',
+            borderRadius: 16, padding: '28px 28px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+          }}>
+            <h2 style={{ fontSize: 17, fontWeight: 600, color: NAVY, marginBottom: 20 }}>Quick setup</h2>
+            <form onSubmit={e => { e.preventDefault(); finish() }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <Field label="App name (optional)">
+                <Input
+                  placeholder="My Budget"
+                  value={appName}
+                  onChange={e => setAppName(e.target.value)}
+                  autoFocus
+                />
+              </Field>
+              <Field label="Currency symbol">
+                <Input
+                  placeholder="$"
+                  value={currencySymbol}
+                  onChange={e => setCurrencySymbol(e.target.value)}
+                />
+              </Field>
+              <Button type="submit" style={{ width: '100%', marginTop: 4 }}>
+                Let's go <ArrowRight size={16} />
+              </Button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+import { useState } from 'react'
+import { Plus, Trash2, Edit2, Download, Check } from 'lucide-react'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
+import { Input, Select, Field } from '../components/ui/Input'
+import { Category } from '../types'
+import { uuid } from '../utils/uuid'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+const ICONS = ['🛒','🍽️','🚗','🎬','🛍️','⚡','💪','🏠','💰','💻','📈','✈️','🏥','📚','🎮','☕','🐕','👶','🎁','🔧','📱','🏋️','🎵','🍺']
+
+function CategoryModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Category }) {
+  const { dispatch } = useStore()
+  const [form, setForm] = useState({
+    name: initial?.name || '',
+    type: (initial?.type || 'expense') as 'income' | 'expense',
+    color: initial?.color || GREEN,
+    icon: initial?.icon || '💳',
+    keywords: initial?.keywords?.join(', ') || '',
+  })
+  const [err, setErr] = useState('')
+
+  function save() {
+    if (!form.name.trim()) return setErr('Name is required')
+    setErr('')
+    const keywords = form.keywords
+      .split(',')
+      .map(k => k.trim().toLowerCase())
+      .filter(k => k.length >= 2)
+    const cat: Category = {
+      id: initial?.id || uuid(),
+      name: form.name.trim(),
+      type: form.type,
+      color: form.color,
+      icon: form.icon,
+      keywords: keywords.length > 0 ? keywords : undefined,
+    }
+    dispatch({ type: initial ? 'UPDATE_CATEGORY' : 'ADD_CATEGORY', payload: cat })
+    onClose()
+  }
+
+  const COLORS = [GREEN, '#4A6CF7', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#ec4899', '#64748b', '#f97316', '#84cc16']
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit Category' : 'Add Category'} size="sm">
+      <form onSubmit={e => { e.preventDefault(); save() }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+        <Field label="Name">
+          <Input autoFocus placeholder="Groceries" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        </Field>
+        <Field label="Type — sets which transactions match">
+          <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}>
+            <option value="expense">Expense (debit / outgoing money)</option>
+            <option value="income">Income (credit / incoming money)</option>
+          </Select>
+        </Field>
+        <Field label="Custom keywords (optional, comma-separated)">
+          <Input
+            placeholder="e.g. whole foods, trader joe, sprouts"
+            value={form.keywords}
+            onChange={e => setForm(f => ({ ...f, keywords: e.target.value }))}
+          />
+        </Field>
+        <Field label="Icon">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6 }}>
+            {ICONS.map(icon => (
+              <button type="button" key={icon} onClick={() => setForm(f => ({ ...f, icon }))}
+                style={{
+                  width: 36, height: 36, borderRadius: 8, fontSize: 18, border: 'none',
+                  background: form.icon === icon ? 'rgba(6,198,138,0.15)' : '#F0F0F0',
+                  outline: form.icon === icon ? `2px solid ${GREEN}` : 'none',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s', fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => { if (form.icon !== icon) (e.currentTarget as HTMLElement).style.background = '#E8E8E8' }}
+                onMouseLeave={e => { if (form.icon !== icon) (e.currentTarget as HTMLElement).style.background = '#F0F0F0' }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Color">
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {COLORS.map(c => (
+              <button type="button" key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', background: c, border: 'none', cursor: 'pointer',
+                  outline: form.color === c ? `3px solid ${c}` : 'none',
+                  outlineOffset: 2, transform: form.color === c ? 'scale(1.15)' : 'scale(1)', transition: 'all 0.15s',
+                }} />
+            ))}
+          </div>
+        </Field>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button type="submit" style={{ flex: 1 }}>Save</Button>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+export function Settings() {
+  const { state, dispatch } = useStore()
+  const [name, setName] = useState(state.settings.name)
+  const [currencySymbol, setCurrencySymbol] = useState(state.settings.currencySymbol)
+  const [monthlyIncome, setMonthlyIncome] = useState(state.settings.monthlyIncome?.toString() || '')
+  const [monthlySavings, setMonthlySavings] = useState(state.settings.monthlySavings?.toString() || '')
+  const [payFrequency, setPayFrequency] = useState<'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'>(state.settings.payFrequency || 'biweekly')
+  const [saved, setSaved] = useState(false)
+  const [showCatModal, setShowCatModal] = useState(false)
+  const [editingCat, setEditingCat] = useState<Category | null>(null)
+
+  function saveSettings() {
+    const income = parseFloat(monthlyIncome)
+    const savings = parseFloat(monthlySavings)
+    const updated = {
+      name: name.trim() || 'My Budget',
+      currencySymbol: currencySymbol.trim() || '$',
+      monthlyIncome: isNaN(income) || income <= 0 ? undefined : income,
+      monthlySavings: isNaN(savings) || savings <= 0 ? undefined : savings,
+      payFrequency: payFrequency as any,
+    }
+    dispatch({ type: 'UPDATE_SETTINGS', payload: updated })
+    // Also write directly to localStorage so it persists immediately
+    try {
+      const current = JSON.parse(localStorage.getItem('budget_app_v1') || '{}')
+      current.settings = { ...current.settings, ...updated }
+      localStorage.setItem('budget_app_v1', JSON.stringify(current))
+    } catch {}
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  function deleteCategory(id: string) {
+    const cat = state.categories.find(c => c.id === id)
+    if (cat?.isDefault) return alert("Can't delete a default category.")
+    if (confirm('Delete this category?')) dispatch({ type: 'DELETE_CATEGORY', payload: id })
+  }
+
+  function exportData() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'budget-data.json'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function clearAllData() {
+    if (!confirm('Clear ALL your data and start with an empty app? This cannot be undone.')) return
+    const empty = {
+      accounts: [], transactions: [], categories: [], budgets: [],
+      goals: [], netWorthHistory: [], subscriptions: [],
+      settings: { currency: 'USD', currencySymbol: '$', theme: 'dark', name: 'My Budget', dashboardWidgets: [] },
+    }
+    try { localStorage.setItem('budget_app_v1', JSON.stringify(empty)) } catch {}
+    window.location.reload()
+  }
+
+  function resetToDemo() {
+    if (!confirm('Reset ALL data to demo state?')) return
+    dispatch({ type: 'RESET' })
+  }
+
+  const expCats = state.categories.filter(c => c.type === 'expense')
+  const incCats = state.categories.filter(c => c.type === 'income')
+
+  const catRow = (c: Category) => (
+    <div key={c.id}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 8, transition: 'background 0.1s' }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F5F5'}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 16 }}>{c.icon}</span>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: NAVY }}>{c.name}</span>
+        {c.isDefault && <span style={{ fontSize: 10, color: '#B0B0B0' }}>default</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 2 }}>
+        <IconButton size="sm" onClick={() => setEditingCat(c)}><Edit2 size={12} /></IconButton>
+        {!c.isDefault && (
+          <IconButton size="sm" variant="danger" onClick={() => deleteCategory(c.id)}><Trash2 size={12} /></IconButton>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Settings</h1>
+        <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Manage your preferences and categories</p>
+      </div>
+
+      {/* General settings — wrapped in form so Enter key works */}
+      <Card style={{ padding: '20px 24px' }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>General</p>
+        <form onSubmit={e => { e.preventDefault(); saveSettings() }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr 1fr 160px', gap: 14, marginBottom: 16 }}>
+            <Field label="App Name">
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="My Budget" />
+            </Field>
+            <Field label="Currency">
+              <Input value={currencySymbol} onChange={e => setCurrencySymbol(e.target.value)} placeholder="$" />
+            </Field>
+            <Field label={`Monthly Take-Home Pay (${currencySymbol || '$'})`}>
+              <Input
+                type="number"
+                value={monthlyIncome}
+                onChange={e => setMonthlyIncome(e.target.value)}
+                placeholder="e.g. 4500"
+                min="0"
+                step="any"
+              />
+            </Field>
+            <Field label={`Monthly Savings Goal (${currencySymbol || '$'})`}>
+              <Input
+                type="number"
+                value={monthlySavings}
+                onChange={e => setMonthlySavings(e.target.value)}
+                placeholder="e.g. 800"
+                min="0"
+                step="any"
+              />
+            </Field>
+            <Field label="Pay Frequency">
+              <Select value={payFrequency} onChange={e => setPayFrequency(e.target.value as any)}>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly (every 2 wks)</option>
+                <option value="semi-monthly">Semi-monthly (2x/mo)</option>
+                <option value="monthly">Monthly</option>
+              </Select>
+            </Field>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Button type="submit" style={{ minWidth: 120 }}>
+              {saved ? <><Check size={14} /> Saved!</> : 'Save Settings'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={exportData}><Download size={13} /> Export</Button>
+            <div style={{ flex: 1 }} />
+            <Button type="button" variant="secondary" onClick={clearAllData}>Clear All Data</Button>
+            <Button type="button" variant="danger" onClick={resetToDemo}>Reset to Demo</Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* Categories */}
+      <Card style={{ padding: '18px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Categories</p>
+          <Button size="sm" onClick={() => setShowCatModal(true)}><Plus size={12} /> Add Category</Button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Expense</p>
+            {expCats.map(catRow)}
+          </div>
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Income</p>
+            {incCats.map(catRow)}
+          </div>
+        </div>
+      </Card>
+
+      {showCatModal && <CategoryModal open onClose={() => setShowCatModal(false)} />}
+      {editingCat && <CategoryModal open onClose={() => setEditingCat(null)} initial={editingCat} />}
+    </div>
+  )
+}
+﻿import { useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Plus, Search, Trash2, Edit2, Filter, Upload, AlertTriangle } from 'lucide-react'
+import { ImportModal } from '../components/ImportModal'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
+import { Input, Select, Textarea, Field } from '../components/ui/Input'
+import { DatePicker } from '../components/ui/DatePicker'
+import { formatCurrency, formatDate } from '../utils/formatters'
+import { Transaction, TransactionType } from '../types'
+import { uuid } from '../utils/uuid'
+import { saveCorrection, detectDirection } from '../utils/categorize'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+
+interface TransactionModalProps { open: boolean; onClose: () => void; initial?: Transaction }
+export function TransactionModal({ open, onClose, initial }: TransactionModalProps) {
+  const { state, dispatch } = useStore()
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+  const [form, setForm] = useState({
+    date: initial?.date || today,
+    description: initial?.description || '',
+    amount: initial?.amount?.toString() || '',
+    type: initial?.type || 'expense' as TransactionType,
+    categoryId: initial?.categoryId || state.categories.find(c => c.type === 'expense')?.id || '',
+    accountId: initial?.accountId || state.accounts[0]?.id || '',
+    notes: initial?.notes || '',
+    isRecurring: initial?.isRecurring || false,
+    recurringFrequency: initial?.recurringFrequency || 'monthly' as 'weekly'|'biweekly'|'monthly'|'yearly',
+  })
+  const [err, setErr] = useState('')
+
+  const filteredCats = state.categories.filter(c => c.type === form.type)
+
+  function save() {
+    if (!form.description.trim()) return setErr('Description is required')
+    const amount = parseFloat(form.amount)
+    if (isNaN(amount) || amount <= 0) return setErr('Enter a valid amount')
+    if (!form.categoryId) return setErr('Select a category')
+    if (!form.accountId) return setErr('Select an account')
+    setErr('')
+    const tx: Transaction = {
+      id: initial?.id || uuid(),
+      date: form.date,
+      description: form.description.trim(),
+      amount,
+      type: form.type,
+      categoryId: form.categoryId,
+      accountId: form.accountId,
+      notes: form.notes,
+      isRecurring: form.isRecurring,
+      recurringFrequency: form.isRecurring ? form.recurringFrequency : undefined,
+    }
+    // When the user edits an existing transaction and changes its category, persist
+    // that as a learned correction so future imports auto-categorize correctly.
+    if (initial && form.categoryId !== initial.categoryId && form.categoryId) {
+      const dir = detectDirection(tx.description)
+      saveCorrection(tx.description, form.categoryId, dir)
+    }
+    dispatch({ type: initial ? 'UPDATE_TRANSACTION' : 'ADD_TRANSACTION', payload: tx })
+    onClose()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit Transaction' : 'Add Transaction'}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Type">
+            <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as TransactionType, categoryId: '' }))}>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+              <option value="transfer">Transfer</option>
+            </Select>
+          </Field>
+          <Field label="Date">
+            <DatePicker value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} max={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()} />
+          </Field>
+        </div>
+        <Field label="Description">
+          <Input placeholder="e.g. Whole Foods" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+        </Field>
+        <Field label="Amount">
+          <Input type="number" placeholder="0.00" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Category">
+            <Select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+              <option value="">Select category</option>
+              {filteredCats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Account">
+            <Select value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+              {state.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Notes (optional)">
+          <Textarea rows={2} placeholder="Any notes..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        </Field>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" id="recurring" checked={form.isRecurring} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked }))}
+            style={{ width: 16, height: 16, accentColor: GREEN, cursor: 'pointer' }} />
+          <label htmlFor="recurring" style={{ fontSize: 13, color: '#374151', cursor: 'pointer' }}>Recurring transaction</label>
+        </div>
+        {form.isRecurring && (
+          <Field label="Frequency">
+            <Select value={form.recurringFrequency} onChange={e => setForm(f => ({ ...f, recurringFrequency: e.target.value as any }))}>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Bi-weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </Select>
+          </Field>
+        )}
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+          <Button onClick={save} style={{ flex: 1 }}>Save Transaction</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+export function Transactions() {
+  const { state, dispatch } = useStore()
+  const [search, setSearch] = useState('')
+  const [filterCat, setFilterCat] = useState('')
+  const [filterType, setFilterType] = useState('')
+  const [filterMonth, setFilterMonth] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [editing, setEditing] = useState<Transaction | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Bulk delete state
+  const [showBulkDelete, setShowBulkDelete] = useState(false)
+  const [bulkFrom, setBulkFrom] = useState('')
+  const [bulkTo, setBulkTo] = useState('')
+  const [confirmingBulk, setConfirmingBulk] = useState(false)
+
+  const bulkMatches = (bulkFrom && bulkTo && bulkFrom <= bulkTo)
+    ? state.transactions.filter(t => t.date >= bulkFrom && t.date <= bulkTo)
+    : []
+  const bulkTotal = bulkMatches.reduce((s, t) => s + t.amount, 0)
+
+  function executeBulkDelete() {
+    for (const t of bulkMatches) {
+      dispatch({ type: 'DELETE_TRANSACTION', payload: t.id })
+    }
+    setConfirmingBulk(false)
+    setShowBulkDelete(false)
+    setBulkFrom('')
+    setBulkTo('')
+  }
+
+  const filtered = state.transactions.filter(t => {
+    if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false
+    if (filterCat && t.categoryId !== filterCat) return false
+    if (filterType && t.type !== filterType) return false
+    if (filterMonth && !t.date.startsWith(filterMonth)) return false
+    return true
+  }).sort((a, b) => b.date.localeCompare(a.date))
+
+  function deleteTransaction(id: string) {
+    if (confirm('Delete this transaction?')) dispatch({ type: 'DELETE_TRANSACTION', payload: id })
+  }
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Transactions</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="secondary" onClick={() => { setShowBulkDelete(v => !v); setConfirmingBulk(false) }}>
+            <Trash2 size={14} /> Bulk Delete
+          </Button>
+          <Button variant="secondary" onClick={() => setShowImport(true)}><Upload size={14} /> Import Transactions</Button>
+          <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Transaction</Button>
+        </div>
+      </div>
+
+      <Card style={{ padding: '16px 20px' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8A94A6', pointerEvents: 'none' }} />
+            <Input placeholder="Search transactions..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 36 }} />
+          </div>
+          <Button variant="secondary" onClick={() => setShowFilters(f => !f)}>
+            <Filter size={14} /> Filters {showFilters ? '▲' : '▼'}
+          </Button>
+        </div>
+        {showFilters && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 12 }}>
+            <Select value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="">All types</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+              <option value="transfer">Transfer</option>
+            </Select>
+            <Select value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+              <option value="">All categories</option>
+              {state.categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            </Select>
+            <Input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />
+          </div>
+        )}
+      </Card>
+
+      {/* Bulk delete panel */}
+      {showBulkDelete && (
+        <Card style={{ padding: '18px 20px', border: '1px solid #fecaca', background: '#fff8f8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <Trash2 size={15} style={{ color: '#ef4444' }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Bulk Delete by Date Range</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
+            <Field label="From date">
+              <DatePicker value={bulkFrom} onChange={setBulkFrom} max={bulkTo || undefined} placeholder="Start date" />
+            </Field>
+            <Field label="To date">
+              <DatePicker value={bulkTo} onChange={setBulkTo} min={bulkFrom || undefined} placeholder="End date" />
+            </Field>
+            <Button
+              variant="danger"
+              disabled={bulkMatches.length === 0}
+              onClick={() => setConfirmingBulk(true)}
+              style={{ marginBottom: 1 }}
+            >
+              Delete {bulkMatches.length > 0 ? bulkMatches.length : ''} Transaction{bulkMatches.length !== 1 ? 's' : ''}
+            </Button>
+          </div>
+          {bulkFrom && bulkTo && bulkFrom <= bulkTo && (
+            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: bulkMatches.length > 0 ? '#fef2f2' : 'rgba(0,0,0,0.03)', border: `1px solid ${bulkMatches.length > 0 ? '#fecaca' : '#E4E4E4'}` }}>
+              {bulkMatches.length > 0 ? (
+                <p style={{ fontSize: 13, color: '#dc2626' }}>
+                  <strong>{bulkMatches.length}</strong> transaction{bulkMatches.length !== 1 ? 's' : ''} found between {bulkFrom} and {bulkTo} · total {formatCurrency(bulkTotal, state.settings.currencySymbol)}
+                </p>
+              ) : (
+                <p style={{ fontSize: 13, color: '#8A94A6' }}>No transactions in this date range.</p>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Bulk delete confirmation modal */}
+      {confirmingBulk && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={() => setConfirmingBulk(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }} />
+          <div style={{ position: 'relative', background: '#fff', borderRadius: 16, border: '1px solid #fecaca', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 440, padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle size={18} style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: NAVY }}>Confirm bulk delete</h2>
+                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>This cannot be undone</p>
+              </div>
+            </div>
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: '#6b7280' }}>Transactions</span>
+                <span style={{ fontWeight: 600, color: NAVY }}>{bulkMatches.length}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: '#6b7280' }}>Total amount</span>
+                <span style={{ fontWeight: 600, color: NAVY }}>{formatCurrency(bulkTotal, state.settings.currencySymbol)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: '#6b7280' }}>Date range</span>
+                <span style={{ fontWeight: 600, color: NAVY }}>{bulkFrom} → {bulkTo}</span>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: '#374151' }}>
+              You are about to permanently delete <strong>{bulkMatches.length} transaction{bulkMatches.length !== 1 ? 's' : ''}</strong>. This action cannot be reversed.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Button variant="secondary" onClick={() => setConfirmingBulk(false)} style={{ flex: 1 }}>Cancel</Button>
+              <Button variant="danger" onClick={executeBulkDelete} style={{ flex: 1 }}>
+                <Trash2 size={14} /> Delete {bulkMatches.length} Transaction{bulkMatches.length !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <Card>
+        {filtered.length === 0 && (
+          <div style={{ padding: '48px', textAlign: 'center', color: '#8A94A6', fontSize: 14 }}>No transactions found.</div>
+        )}
+        {filtered.map((t, i) => {
+          const cat = state.categories.find(c => c.id === t.categoryId)
+          const acc = state.accounts.find(a => a.id === t.accountId)
+          return (
+            <div key={t.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 20px',
+              borderBottom: i < filtered.length - 1 ? '1px solid #EBEBEB' : 'none',
+            }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F5F5'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                  {cat?.icon || '💳'}
+                </div>
+                <div>
+                  <p style={{ fontSize: 13.5, fontWeight: 500, color: NAVY }}>{t.description}</p>
+                  <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>{cat?.name} · {acc?.name} · {formatDate(t.date)}</p>
+                </div>
+                {t.isRecurring && (
+                  <span style={{ fontSize: 11, color: GREEN, background: 'rgba(6,198,138,0.1)', padding: '2px 8px', borderRadius: 99 }}>Recurring</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: t.type === 'income' ? GREEN : NAVY }}>
+                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount, state.settings.currencySymbol)}
+                </span>
+                <IconButton onClick={() => setEditing(t)}><Edit2 size={13} /></IconButton>
+                <IconButton variant="danger" onClick={() => deleteTransaction(t.id)}><Trash2 size={13} /></IconButton>
+              </div>
+            </div>
+          )
+        })}
+      </Card>
+
+      {showAdd && <TransactionModal open={showAdd} onClose={() => setShowAdd(false)} />}
+      {editing && <TransactionModal open={!!editing} onClose={() => setEditing(null)} initial={editing} />}
+      {showImport && <ImportModal open={showImport} onClose={() => setShowImport(false)} />}
+    </div>
+  )
+}
+import { useState } from 'react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, AlertTriangle, Award, Calendar } from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, Cell as RechartsCell, ReferenceLine,
+} from 'recharts'
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, parseISO, differenceInDays } from 'date-fns'
+import { DatePicker } from '../components/ui/DatePicker'
+import { useStore } from '../store/useStore'
+import { Card } from '../components/ui/Card'
+import { formatCurrency } from '../utils/formatters'
+import { Subscription, AppSettings } from '../types'
+
+const GREEN = '#06C68A'
+const NAVY = '#1A1F36'
+const RED = '#ef4444'
+const AMBER = '#f59e0b'
+const BILLS_COLOR = '#f97316'
+const GRAY = '#8A94A6'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function weekStart(dateStr: string) {
+  return format(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+}
+function weekEnd(ws: string) {
+  return format(endOfWeek(parseISO(ws), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+}
+function weekLabel(ws: string) {
+  const s = parseISO(ws)
+  const e = endOfWeek(s, { weekStartsOn: 1 })
+  return `${format(s, 'MMM d')} – ${format(e, 'MMM d')}`
+}
+function weeklyFromSub(sub: Subscription): number {
+  if (sub.frequency === 'weekly') return sub.amount
+  if (sub.frequency === 'yearly') return sub.amount / 52
+  return sub.amount / 4
+}
+function getWeeklyPaycheck(settings: AppSettings): number {
+  const { paycheckAmount, payFrequency, monthlyIncome } = settings
+  if (paycheckAmount && paycheckAmount > 0) {
+    if (payFrequency === 'weekly') return paycheckAmount
+    if (payFrequency === 'biweekly' || payFrequency === 'semi-monthly') return paycheckAmount / 2
+    if (payFrequency === 'monthly') return paycheckAmount / 4
+    return paycheckAmount / 4
+  }
+  return (monthlyIncome || 0) / 4
+}
+function todayStr() { return format(new Date(), 'yyyy-MM-dd') }
+function fourWeeksAgo() { return format(subWeeks(new Date(), 4), 'yyyy-MM-dd') }
+
+const tt = {
+  contentStyle: {
+    background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8,
+    fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)',
+  },
+}
+
+// ─── Shared UI pieces ─────────────────────────────────────────────────────────
+
+function StatTile({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
+  return (
+    <Card style={{ padding: '18px 20px', textAlign: 'center' }}>
+      <p style={{ fontSize: 10, fontWeight: 600, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
+      <p style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontSize: 11, color: GRAY, marginTop: 6 }}>{sub}</p>}
+    </Card>
+  )
+}
+
+function EmptyState({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <Card style={{ padding: '56px 32px', textAlign: 'center' }}>
+      <p style={{ fontSize: 36, marginBottom: 14 }}>{icon}</p>
+      <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 8 }}>{title}</p>
+      <p style={{ fontSize: 13, color: GRAY, maxWidth: 360, margin: '0 auto' }}>{body}</p>
+    </Card>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+type ViewMode = 'weekly' | 'range'
+
+export function Analysis() {
+  const { state } = useStore()
+  const sym = state.settings.currencySymbol
+
+  // ── Mode ──────────────────────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>('weekly')
+
+  // Weekly nav
+  const [currentWS, setCurrentWS] = useState(() =>
+    format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  )
+  const prevWeek = () => setCurrentWS(ws => format(subWeeks(parseISO(ws), 1), 'yyyy-MM-dd'))
+  const nextWeek = () => setCurrentWS(ws => format(addWeeks(parseISO(ws), 1), 'yyyy-MM-dd'))
+  const isCurrentWeek = currentWS === format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const currentWE = weekEnd(currentWS)
+
+  // Range picker
+  const [rangeFrom, setRangeFrom] = useState(fourWeeksAgo)
+  const [rangeTo, setRangeTo] = useState(todayStr)
+  const rangeValid = rangeFrom && rangeTo && rangeFrom <= rangeTo
+  const rangeDays = rangeValid ? differenceInDays(parseISO(rangeTo), parseISO(rangeFrom)) + 1 : 0
+  const weekCount = Math.max(1, rangeDays / 7) // proportional weeks in range
+
+  // ── Shared data ───────────────────────────────────────────────────────────
+  const weeklyBudgets = state.budgets.filter(b => b.month === 'weekly')
+  const activeSubs = state.subscriptions.filter(s => s.status === 'active')
+  const weeklyBillsTotal = activeSubs.reduce((s, sub) => s + weeklyFromSub(sub), 0)
+  const weeklyPaycheck = getWeeklyPaycheck(state.settings)
+
+  // ── Period-specific values ─────────────────────────────────────────────────
+  const periodStart = viewMode === 'weekly' ? currentWS : rangeFrom
+  const periodEnd   = viewMode === 'weekly' ? currentWE  : rangeTo
+  const budgetScale = viewMode === 'weekly' ? 1 : weekCount
+
+  const periodTxs = state.transactions.filter(
+    t => t.type === 'expense' && rangeValid && t.date >= periodStart && t.date <= periodEnd
+  )
+  const totalActual   = periodTxs.reduce((s, t) => s + t.amount, 0)
+  const totalBudgeted = (weeklyBudgets.reduce((s, b) => s + b.monthlyLimit, 0) + weeklyBillsTotal) * budgetScale
+  const totalDiff     = totalBudgeted - totalActual
+
+  // ── Category breakdown ─────────────────────────────────────────────────────
+  const budgetedCatIds = new Set(weeklyBudgets.map(b => b.categoryId))
+
+  const categoryRows = weeklyBudgets.map(budget => {
+    const cat    = state.categories.find(c => c.id === budget.categoryId)
+    const scaled = budget.monthlyLimit * budgetScale
+    const spent  = periodTxs.filter(t => t.categoryId === budget.categoryId).reduce((s, t) => s + t.amount, 0)
+    const diff   = scaled - spent
+    return {
+      catId:    budget.categoryId,
+      name:     cat?.name  || 'Unknown',
+      icon:     cat?.icon  || '💳',
+      color:    cat?.color || GRAY,
+      budgeted: scaled,
+      spent,
+      diff,
+      over: diff < 0,
+      pct: scaled > 0 ? Math.min(150, (spent / scaled) * 100) : 0,
+    }
+  }).sort((a, b) => a.diff - b.diff)
+
+  const unbudgetedTxs = periodTxs.filter(t => !budgetedCatIds.has(t.categoryId))
+  const unbudgetedByCat: Record<string, { name: string; icon: string; total: number }> = {}
+  for (const t of unbudgetedTxs) {
+    const cat = state.categories.find(c => c.id === t.categoryId)
+    const key = t.categoryId || 'uncategorized'
+    if (!unbudgetedByCat[key]) unbudgetedByCat[key] = { name: cat?.name || 'Uncategorized', icon: cat?.icon || '💳', total: 0 }
+    unbudgetedByCat[key].total += t.amount
+  }
+  const unbudgetedTotal = unbudgetedTxs.reduce((s, t) => s + t.amount, 0)
+
+  const biggestExpenses = [...periodTxs].sort((a, b) => b.amount - a.amount).slice(0, 5)
+  const overBudgetCategories = categoryRows.filter(r => r.over)
+  const hasNoData = periodTxs.length === 0
+
+  // ── 8-week trend (weekly mode only) ───────────────────────────────────────
+  const trendWeeks = Array.from({ length: 8 }, (_, i) => {
+    const ws = format(subWeeks(parseISO(currentWS), 7 - i), 'yyyy-MM-dd')
+    const we = weekEnd(ws)
+    const spent = state.transactions
+      .filter(t => t.type === 'expense' && t.date >= ws && t.date <= we)
+      .reduce((s, t) => s + t.amount, 0)
+    return { label: format(parseISO(ws), 'MMM d'), ws, spent, budgeted: totalBudgeted, isCurrent: ws === currentWS }
+  })
+  const hasAnyTrendData = trendWeeks.slice(0, 7).some(w => w.spent > 0)
+
+  // ── Week-by-week breakdown within custom range ─────────────────────────────
+  const rangeWeeks = (() => {
+    if (!rangeValid || rangeDays <= 7) return []
+    const weeks: { label: string; spent: number; budgeted: number }[] = []
+    let ws = weekStart(rangeFrom)
+    while (ws <= rangeTo) {
+      const we = weekEnd(ws)
+      const clampStart = ws < rangeFrom ? rangeFrom : ws
+      const clampEnd   = we > rangeTo   ? rangeTo   : we
+      const clampDays  = differenceInDays(parseISO(clampEnd), parseISO(clampStart)) + 1
+      const scale      = clampDays / 7
+      const spent = state.transactions
+        .filter(t => t.type === 'expense' && t.date >= clampStart && t.date <= clampEnd)
+        .reduce((s, t) => s + t.amount, 0)
+      weeks.push({
+        label: format(parseISO(ws), 'MMM d'),
+        spent,
+        budgeted: (weeklyBudgets.reduce((s, b) => s + b.monthlyLimit, 0) + weeklyBillsTotal) * scale,
+      })
+      ws = format(addWeeks(parseISO(ws), 1), 'yyyy-MM-dd')
+    }
+    return weeks
+  })()
+
+  // ── Paycheck guard ─────────────────────────────────────────────────────────
+  if (weeklyPaycheck <= 0) {
+    return (
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <PageHeader />
+        <EmptyState
+          icon="📊"
+          title="Set up your paycheck first"
+          body="Go to Settings to enter your income and pay frequency, then create a weekly budget to start analysis."
+        />
+      </div>
+    )
+  }
+
+  const periodLabel = viewMode === 'weekly'
+    ? weekLabel(currentWS)
+    : `${format(parseISO(rangeFrom), 'MMM d')} – ${format(parseISO(rangeTo), 'MMM d, yyyy')}`
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Analysis</h1>
+          <p style={{ fontSize: 13, color: GRAY, marginTop: 3 }}>Budget vs. actual · {periodLabel}</p>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', background: '#F0F0F0', borderRadius: 10, padding: 3, gap: 2 }}>
+            {(['weekly', 'range'] as ViewMode[]).map(m => (
+              <button key={m} onClick={() => setViewMode(m)}
+                style={{
+                  padding: '7px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 13, fontWeight: viewMode === m ? 600 : 400, transition: 'all 0.15s',
+                  background: viewMode === m ? '#fff' : 'transparent',
+                  color: viewMode === m ? NAVY : GRAY,
+                  boxShadow: viewMode === m ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                }}>
+                {m === 'weekly' ? '📅 Weekly' : '📆 Date Range'}
+              </button>
+            ))}
+          </div>
+
+          {/* Weekly nav */}
+          {viewMode === 'weekly' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={prevWeek} style={navBtnStyle()}>
+                <ChevronLeft size={15} color={NAVY} />
+              </button>
+              <span style={{
+                fontSize: 13, fontWeight: 600, color: NAVY, padding: '6px 16px', borderRadius: 8,
+                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : '#F0F0F0',
+                border: `1px solid ${isCurrentWeek ? 'rgba(6,198,138,0.25)' : '#E4E4E4'}`,
+                minWidth: 170, textAlign: 'center',
+              }}>
+                {isCurrentWeek ? 'This Week' : weekLabel(currentWS)}
+              </span>
+              <button onClick={nextWeek} disabled={isCurrentWeek} style={navBtnStyle(isCurrentWeek)}>
+                <ChevronRight size={15} color={NAVY} />
+              </button>
+            </div>
+          )}
+
+          {/* Range picker */}
+          {viewMode === 'range' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontSize: 12, color: GRAY, fontWeight: 500 }}>From</label>
+                <DatePicker value={rangeFrom} onChange={setRangeFrom} max={rangeTo || todayStr()} style={{ width: 152 }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ fontSize: 12, color: GRAY, fontWeight: 500 }}>To</label>
+                <DatePicker value={rangeTo} onChange={setRangeTo} min={rangeFrom} max={todayStr()} style={{ width: 152 }} />
+              </div>
+              {rangeValid && (
+                <span style={{ fontSize: 12, color: GRAY, whiteSpace: 'nowrap' }}>
+                  {rangeDays} days · {weekCount.toFixed(1)} wks
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Invalid range warning ── */}
+      {viewMode === 'range' && !rangeValid && rangeFrom && rangeTo && rangeFrom > rangeTo && (
+        <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, color: RED, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle size={14} /> End date must be on or after start date.
+        </div>
+      )}
+
+      {/* ── Overspending banner ── */}
+      {overBudgetCategories.length > 0 && !hasNoData && (
+        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertTriangle size={14} style={{ color: RED, flexShrink: 0 }} />
+            <p style={{ fontSize: 13, fontWeight: 600, color: RED }}>
+              Over budget in {overBudgetCategories.length} categor{overBudgetCategories.length === 1 ? 'y' : 'ies'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {overBudgetCategories.map(r => (
+              <span key={r.catId} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#fee2e2', color: RED, fontWeight: 500 }}>
+                {r.icon} {r.name}: +{formatCurrency(-r.diff, sym)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Stat tiles ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <StatTile label={viewMode === 'weekly' ? 'Weekly Budget' : `${weekCount.toFixed(1)}-Week Budget`} value={formatCurrency(totalBudgeted, sym)} color={NAVY} />
+        <StatTile label="Actually Spent" value={formatCurrency(totalActual, sym)} color={totalActual > totalBudgeted ? RED : NAVY} />
+        <StatTile
+          label={totalDiff >= 0 ? 'Under Budget' : 'Over Budget'}
+          value={formatCurrency(Math.abs(totalDiff), sym)}
+          color={totalDiff >= 0 ? GREEN : RED}
+        />
+        <StatTile
+          label="Transactions"
+          value={String(periodTxs.length)}
+          color={NAVY}
+          sub={periodTxs.length === 0 ? 'Import via Transactions page' : undefined}
+        />
+      </div>
+
+      {/* ── Main layout ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+
+        {/* Left: categories */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {weeklyBillsTotal > 0 && (
+            <Card style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: BILLS_COLOR + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🧾</div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: NAVY }}>Bills (fixed)</p>
+                    <p style={{ fontSize: 11, color: GRAY }}>
+                      {viewMode === 'range' ? `${formatCurrency(weeklyBillsTotal, sym)}/wk × ${weekCount.toFixed(1)} wks` : 'Fixed weekly obligation'}
+                    </p>
+                  </div>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: BILLS_COLOR }}>{formatCurrency(weeklyBillsTotal * budgetScale, sym)}</span>
+              </div>
+            </Card>
+          )}
+
+          {hasNoData ? (
+            <EmptyState
+              icon="📂"
+              title={viewMode === 'range' ? 'No transactions in this range' : 'No transactions this week yet'}
+              body="Go to Transactions and use Import Transactions to add your spending."
+            />
+          ) : categoryRows.length === 0 ? (
+            <Card style={{ padding: '32px 24px', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: GRAY }}>
+                No weekly budget categories set. Create allocations in <strong>Budgets</strong> to see budget vs. actual here.
+              </p>
+            </Card>
+          ) : (
+            categoryRows.map(r => (
+              <Card key={r.catId} style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 8, background: r.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                      {r.icon}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: NAVY }}>{r.name}</p>
+                      <p style={{ fontSize: 11, color: GRAY }}>
+                        {formatCurrency(r.spent, sym)} of {formatCurrency(r.budgeted, sym)}
+                        {viewMode === 'range' && <span style={{ color: '#C0C8D8' }}> ({weekCount.toFixed(1)} wks)</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                    background: r.over ? '#fee2e2' : 'rgba(6,198,138,0.1)',
+                    color: r.over ? RED : GREEN,
+                  }}>
+                    {r.over ? '▲' : '▼'} {formatCurrency(Math.abs(r.diff), sym)}
+                  </span>
+                </div>
+                <div style={{ width: '100%', background: '#EBEBEB', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                  <div style={{
+                    height: 5, borderRadius: 99,
+                    width: `${Math.min(100, r.pct)}%`,
+                    background: r.over ? RED : r.pct > 80 ? AMBER : GREEN,
+                    transition: 'width 0.4s ease',
+                  }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: GRAY, marginTop: 5 }}>
+                  <span>{Math.round(r.pct)}% used</span>
+                  <span style={{ color: r.over ? RED : GREEN, fontWeight: 500 }}>
+                    {r.over ? `Over by ${formatCurrency(-r.diff, sym)}` : `${formatCurrency(r.diff, sym)} remaining`}
+                  </span>
+                </div>
+              </Card>
+            ))
+          )}
+
+          {unbudgetedTotal > 0 && (
+            <Card style={{ padding: '16px 20px', border: '1px solid #fde68a' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: AMBER, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                Unbudgeted · {formatCurrency(unbudgetedTotal, sym)}
+              </p>
+              <p style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>Spending in categories with no weekly budget set.</p>
+              {Object.entries(unbudgetedByCat).map(([catId, b]) => (
+                <div key={catId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: '#6b7280' }}>{b.icon} {b.name}</span>
+                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(b.total, sym)}</span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Biggest expenses */}
+          <Card style={{ padding: '20px 22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <Award size={14} color={NAVY} />
+              <p style={{ fontSize: 12, fontWeight: 600, color: NAVY }}>Top Expenses</p>
+            </div>
+            {biggestExpenses.length === 0 ? (
+              <p style={{ fontSize: 12, color: GRAY }}>No expenses in this period.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {biggestExpenses.map((t, i) => {
+                  const cat = state.categories.find(c => c.id === t.categoryId)
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#C0C8D8', width: 18, flexShrink: 0 }}>#{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 12.5, fontWeight: 500, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</p>
+                        <p style={{ fontSize: 10, color: GRAY, marginTop: 1 }}>{cat?.icon} {cat?.name} · {t.date}</p>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{formatCurrency(t.amount, sym)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+
+          {/* Bar chart: budget vs actual */}
+          {categoryRows.length > 0 && !hasNoData && (
+            <Card style={{ padding: '20px 22px' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 14 }}>Budget vs. Actual</p>
+              <ResponsiveContainer width="100%" height={Math.max(100, categoryRows.length * 28)}>
+                <BarChart
+                  data={categoryRows.map(r => ({ name: `${r.icon} ${r.name}`, spent: r.spent, budgeted: r.budgeted, over: r.over }))}
+                  layout="vertical"
+                  margin={{ top: 0, right: 8, bottom: 0, left: 64 }}
+                  barSize={7}
+                  barCategoryGap="35%"
+                >
+                  <XAxis type="number" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
+                  <Bar dataKey="budgeted" fill="#EBEBEB" radius={[0, 4, 4, 0]} name="Budgeted" />
+                  <Bar dataKey="spent" radius={[0, 4, 4, 0]} name="Spent">
+                    {categoryRows.map((r, i) => <RechartsCell key={i} fill={r.over ? RED : GREEN} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+
+          {/* Trend / breakdown chart */}
+          <Card style={{ padding: '20px 22px' }}>
+            {viewMode === 'weekly' ? (
+              <>
+                <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 2 }}>Weekly Spending Trend</p>
+                <p style={{ fontSize: 11, color: GRAY, marginBottom: 14 }}>Last 8 weeks vs. budget</p>
+                {!hasAnyTrendData ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <TrendingUp size={26} style={{ color: '#E4E4E4', margin: '0 auto 8px', display: 'block' }} />
+                    <p style={{ fontSize: 12, color: GRAY }}>Trend appears after importing transactions from prior weeks.</p>
+                  </div>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={170}>
+                      <LineChart data={trendWeeks} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
+                        <XAxis dataKey="label" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                        <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
+                        {totalBudgeted > 0 && (
+                          <ReferenceLine y={totalBudgeted} stroke={GREEN} strokeDasharray="4 3" strokeWidth={1.5}
+                            label={{ value: 'Budget', position: 'insideTopRight', fontSize: 10, fill: GREEN }} />
+                        )}
+                        <Line type="monotone" dataKey="spent" stroke={NAVY} strokeWidth={2} dot={{ fill: NAVY, r: 3 }} name="Spent" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    {trendWeeks.length >= 2 && (() => {
+                      const thisSpent = trendWeeks[trendWeeks.length - 1].spent
+                      const lastSpent = trendWeeks[trendWeeks.length - 2].spent
+                      if (lastSpent === 0) return null
+                      const delta = thisSpent - lastSpent
+                      const pct = Math.abs((delta / lastSpent) * 100).toFixed(0)
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12 }}>
+                          {delta < 0
+                            ? <TrendingDown size={13} style={{ color: GREEN }} />
+                            : <TrendingUp size={13} style={{ color: RED }} />
+                          }
+                          <span style={{ color: delta < 0 ? GREEN : RED, fontWeight: 500 }}>{delta < 0 ? '−' : '+'}{pct}% vs. last week</span>
+                          <span style={{ color: GRAY }}>({formatCurrency(Math.abs(delta), sym)} {delta < 0 ? 'less' : 'more'})</span>
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+              </>
+            ) : rangeWeeks.length > 0 ? (
+              <>
+                <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 2 }}>Week-by-Week Breakdown</p>
+                <p style={{ fontSize: 11, color: GRAY, marginBottom: 14 }}>Spending within selected range</p>
+                <ResponsiveContainer width="100%" height={170}>
+                  <BarChart data={rangeWeeks} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
+                    <XAxis dataKey="label" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                    <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
+                    <Bar dataKey="budgeted" fill="#EBEBEB" radius={[4, 4, 0, 0]} name="Budgeted" barSize={10} />
+                    <Bar dataKey="spent" fill={NAVY} radius={[4, 4, 0, 0]} name="Spent" barSize={10}>
+                      {rangeWeeks.map((w, i) => <RechartsCell key={i} fill={w.spent > w.budgeted ? RED : GREEN} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <Calendar size={26} style={{ color: '#E4E4E4', margin: '0 auto 8px', display: 'block' }} />
+                <p style={{ fontSize: 12, color: GRAY }}>Select a range longer than one week to see a breakdown.</p>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Style helpers (keep out of render) ──────────────────────────────────────
+
+function PageHeader() {
+  return (
+    <div>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Analysis</h1>
+      <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Budget vs. actual spending by week</p>
+    </div>
+  )
+}
+
+function navBtnStyle(disabled = false): React.CSSProperties {
+  return {
+    width: 32, height: 32, borderRadius: 8,
+    border: '1px solid #E4E4E4',
+    background: disabled ? '#F9F9F9' : '#F0F0F0',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    opacity: disabled ? 0.35 : 1, flexShrink: 0,
+  }
+}
+
