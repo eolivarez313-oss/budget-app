@@ -18,6 +18,7 @@ import { Home } from './pages/Home'
 import { Profile } from './pages/Profile'
 import { WorkspaceCreate } from './pages/WorkspaceCreate'
 import { Hub } from './pages/Hub'
+import { Flow } from './pages/Flow'
 
 const ONBOARDING_KEY = 'budget_onboarding_done'
 
@@ -101,6 +102,7 @@ function AppRoutes() {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/analysis" element={<Analysis />} />
+          <Route path="/flow" element={<Flow />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<Profile />} />

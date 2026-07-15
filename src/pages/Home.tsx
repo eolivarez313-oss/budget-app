@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PieChart, ArrowLeftRight, Activity, MessageCircle, ArrowRight, AlertTriangle, Calendar, Wallet, TrendingUp } from 'lucide-react'
+import { PieChart, ArrowLeftRight, Activity, MessageCircle, ArrowRight, AlertTriangle, Calendar, TrendingUp } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { AnimatedNumber } from '../components/ui/AnimatedNumber'
 import { formatCurrency, currentMonth } from '../utils/formatters'
 import { getMonthIncome, getMonthExpenses, getCategorySpent } from '../utils/calculations'
 import { motion } from 'framer-motion'
+import { transitions } from '../utils/motion'
 
 function greeting(name: string): string {
   const h = new Date().getHours()
@@ -155,13 +157,17 @@ export function Home() {
             <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8 }}>
               Safe to spend today
             </p>
-            <p className="font-display" style={{
-              fontSize: 'clamp(44px, 6vw, 60px)', fontWeight: 700, lineHeight: 1,
-              color: safeToSpendToday > 0 ? 'var(--primary)' : 'var(--destructive)',
-              letterSpacing: '-0.03em', marginBottom: 10,
-            }}>
-              {formatCurrency(safeToSpendToday, sym)}
-            </p>
+            <AnimatedNumber
+              value={safeToSpendToday}
+              format={v => formatCurrency(v, sym)}
+              className="font-display"
+              style={{
+                display: 'block',
+                fontSize: 'clamp(44px, 6vw, 60px)', fontWeight: 700, lineHeight: 1,
+                color: safeToSpendToday > 0 ? 'var(--primary)' : 'var(--destructive)',
+                letterSpacing: '-0.03em', marginBottom: 10,
+              }}
+            />
             <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 28, lineHeight: 1.55 }}>
               {greeting(greetingName)}&ensp;
               {weeklyRemaining >= 0
@@ -200,7 +206,9 @@ export function Home() {
                 </span>
               </div>
               <p className="font-display" style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                {daysToPaycheck === 0 ? 'Today' : `${daysToPaycheck}d`}
+                {daysToPaycheck === 0 ? 'Today' : (
+                  <AnimatedNumber value={daysToPaycheck} format={v => `${Math.round(v)}d`} />
+                )}
               </p>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>
                 {paycheckAmount > 0 ? `${formatCurrency(paycheckAmount, sym)} expected` : 'Set paycheck in Settings'}
