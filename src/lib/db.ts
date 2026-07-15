@@ -74,6 +74,7 @@ export async function loadState(): Promise<AppState | null> {
     netWorthHistory: (netWorthHistory.data || []).map(mapNetWorth),
     subscriptions: (subscriptions.data || []).map(mapSubscription),
     settings,
+    merchantRules: {},
   }
 }
 
