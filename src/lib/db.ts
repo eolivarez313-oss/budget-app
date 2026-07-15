@@ -3,16 +3,16 @@ import { AppState, Account, Transaction, Category, Budget, Goal, NetWorthEntry, 
 
 // ── Loaders ──────────────────────────────────────────────────────────────────
 
-export async function loadState(): Promise<AppState | null> {
+export async function loadState(userId: string): Promise<AppState | null> {
   const [accounts, categories, transactions, budgets, goals, netWorthHistory, subscriptions, settingsRow] = await Promise.all([
-    supabase.from('accounts').select('*').order('created_at'),
-    supabase.from('categories').select('*').order('created_at'),
-    supabase.from('transactions').select('*').order('date', { ascending: false }),
-    supabase.from('budgets').select('*'),
-    supabase.from('goals').select('*').order('created_at'),
-    supabase.from('net_worth_history').select('*').order('date'),
-    supabase.from('subscriptions').select('*').order('created_at'),
-    supabase.from('app_settings').select('*').eq('id', 1).single(),
+    supabase.from('accounts').select('*').eq('user_id', userId).order('created_at'),
+    supabase.from('categories').select('*').eq('user_id', userId).order('created_at'),
+    supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
+    supabase.from('budgets').select('*').eq('user_id', userId),
+    supabase.from('goals').select('*').eq('user_id', userId).order('created_at'),
+    supabase.from('net_worth_history').select('*').eq('user_id', userId).order('date'),
+    supabase.from('subscriptions').select('*').eq('user_id', userId).order('created_at'),
+    supabase.from('app_settings').select('*').eq('user_id', userId).single(),
   ])
 
   if (accounts.error && accounts.error.code !== 'PGRST116') return null
@@ -78,13 +78,14 @@ export async function loadState(): Promise<AppState | null> {
   }
 }
 
-// ── Writers ───────────────────────────────────────────────────────────────────
+// ── Writers (all require userId) ──────────────────────────────────────────────
 
-export async function upsertAccount(a: Account) {
+export async function upsertAccount(a: Account, userId: string) {
   await supabase.from('accounts').upsert({
     id: a.id, name: a.name, type: a.type, balance: a.balance,
     institution: a.institution, color: a.color,
     interest_rate: a.interestRate, return_percent: a.returnPercent,
+    user_id: userId,
   })
 }
 
@@ -92,13 +93,13 @@ export async function deleteAccount(id: string) {
   await supabase.from('accounts').delete().eq('id', id)
 }
 
-export async function upsertTransaction(t: Transaction) {
+export async function upsertTransaction(t: Transaction, userId: string) {
   await supabase.from('transactions').upsert({
     id: t.id, date: t.date, description: t.description, amount: t.amount,
     type: t.type, category_id: t.categoryId, account_id: t.accountId,
     notes: t.notes, is_recurring: t.isRecurring,
     recurring_frequency: t.recurringFrequency, merchant_name: t.merchantName,
-    tags: t.tags,
+    tags: t.tags, user_id: userId,
   })
 }
 
@@ -106,10 +107,11 @@ export async function deleteTransaction(id: string) {
   await supabase.from('transactions').delete().eq('id', id)
 }
 
-export async function upsertCategory(c: Category) {
+export async function upsertCategory(c: Category, userId: string) {
   await supabase.from('categories').upsert({
     id: c.id, name: c.name, color: c.color, icon: c.icon,
     type: c.type, is_default: c.isDefault, tax_related: c.taxRelated,
+    user_id: userId,
   })
 }
 
@@ -117,10 +119,10 @@ export async function deleteCategory(id: string) {
   await supabase.from('categories').delete().eq('id', id)
 }
 
-export async function upsertBudget(b: Budget) {
+export async function upsertBudget(b: Budget, userId: string) {
   await supabase.from('budgets').upsert({
     id: b.id, category_id: b.categoryId, monthly_limit: b.monthlyLimit,
-    month: b.month, rollover: b.rollover,
+    month: b.month, rollover: b.rollover, user_id: userId,
   })
 }
 
@@ -128,12 +130,12 @@ export async function deleteBudget(id: string) {
   await supabase.from('budgets').delete().eq('id', id)
 }
 
-export async function upsertGoal(g: Goal) {
+export async function upsertGoal(g: Goal, userId: string) {
   await supabase.from('goals').upsert({
     id: g.id, name: g.name, target_amount: g.targetAmount,
     current_amount: g.currentAmount, target_date: g.targetDate,
     type: g.type, color: g.color, account_id: g.accountId,
-    notes: g.notes, template: g.template,
+    notes: g.notes, template: g.template, user_id: userId,
   })
 }
 
@@ -141,17 +143,18 @@ export async function deleteGoal(id: string) {
   await supabase.from('goals').delete().eq('id', id)
 }
 
-export async function upsertNetWorthEntry(e: NetWorthEntry) {
+export async function upsertNetWorthEntry(e: NetWorthEntry, userId: string) {
   await supabase.from('net_worth_history').upsert({
-    id: e.id, date: e.date, assets: e.assets, liabilities: e.liabilities,
+    id: e.id, date: e.date, assets: e.assets, liabilities: e.liabilities, user_id: userId,
   })
 }
 
-export async function upsertSubscription(s: Subscription) {
+export async function upsertSubscription(s: Subscription, userId: string) {
   await supabase.from('subscriptions').upsert({
     id: s.id, name: s.name, amount: s.amount, frequency: s.frequency,
     category_id: s.categoryId, status: s.status,
     next_billing_date: s.nextBillingDate, transaction_ids: s.transactionIds,
+    user_id: userId,
   })
 }
 
@@ -159,24 +162,25 @@ export async function deleteSubscription(id: string) {
   await supabase.from('subscriptions').delete().eq('id', id)
 }
 
-export async function saveSettings(s: AppSettings) {
+export async function saveSettings(s: AppSettings, userId: string) {
   await supabase.from('app_settings').upsert({
-    id: 1, currency: s.currency, currency_symbol: s.currencySymbol,
+    user_id: userId,
+    currency: s.currency, currency_symbol: s.currencySymbol,
     theme: s.theme, name: s.name, dashboard_widgets: s.dashboardWidgets,
-  })
+  }, { onConflict: 'user_id' })
 }
 
-export async function seedDatabase(state: AppState) {
+export async function seedDatabase(state: AppState, userId: string) {
   await Promise.all([
-    ...state.accounts.map(upsertAccount),
-    ...state.categories.map(upsertCategory),
+    ...state.accounts.map(a => upsertAccount(a, userId)),
+    ...state.categories.map(c => upsertCategory(c, userId)),
   ])
   await Promise.all([
-    ...state.transactions.map(upsertTransaction),
-    ...state.budgets.map(upsertBudget),
-    ...state.goals.map(upsertGoal),
-    ...state.netWorthHistory.map(upsertNetWorthEntry),
-    ...state.subscriptions.map(upsertSubscription),
-    saveSettings(state.settings),
+    ...state.transactions.map(t => upsertTransaction(t, userId)),
+    ...state.budgets.map(b => upsertBudget(b, userId)),
+    ...state.goals.map(g => upsertGoal(g, userId)),
+    ...state.netWorthHistory.map(e => upsertNetWorthEntry(e, userId)),
+    ...state.subscriptions.map(s => upsertSubscription(s, userId)),
+    saveSettings(state.settings, userId),
   ])
 }

@@ -7,6 +7,7 @@ import {
 import { getInitialData } from './initialData'
 import * as db from '../lib/db'
 import { uuid } from '../utils/uuid'
+import { supabase } from '../lib/supabase'
 
 // ── Action union ─────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ type RootAction =
 
 export type Action = WorkspaceAction | RootAction
 
-// ── Workspace-level reducer (mirrors old reducer) ────────────────────────────
+// ── Workspace-level reducer ──────────────────────────────────────────────────
 
 function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
   switch (action.type) {
@@ -88,15 +89,9 @@ function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
 
 function rootReducer(root: RootState, action: Action): RootState {
   switch (action.type) {
-    case 'SET_ROOT_STATE':
-      return action.payload
-
-    case 'CREATE_WORKSPACE':
-      return { ...root, workspaces: [...root.workspaces, action.payload], activeWorkspaceId: action.payload.id }
-
-    case 'SWITCH_WORKSPACE':
-      return { ...root, activeWorkspaceId: action.payload }
-
+    case 'SET_ROOT_STATE': return action.payload
+    case 'CREATE_WORKSPACE': return { ...root, workspaces: [...root.workspaces, action.payload], activeWorkspaceId: action.payload.id }
+    case 'SWITCH_WORKSPACE': return { ...root, activeWorkspaceId: action.payload }
     case 'DELETE_WORKSPACE': {
       const remaining = root.workspaces.filter(w => w.id !== action.payload)
       const newActive = root.activeWorkspaceId === action.payload
@@ -104,41 +99,14 @@ function rootReducer(root: RootState, action: Action): RootState {
         : root.activeWorkspaceId
       return { ...root, workspaces: remaining, activeWorkspaceId: newActive }
     }
-
     case 'UPDATE_WORKSPACE_NAME':
-      return {
-        ...root,
-        workspaces: root.workspaces.map(w =>
-          w.id === action.payload.id ? { ...w, name: action.payload.name } : w
-        ),
-      }
-
+      return { ...root, workspaces: root.workspaces.map(w => w.id === action.payload.id ? { ...w, name: action.payload.name } : w) }
     case 'ADD_CONTRIBUTOR':
-      return {
-        ...root,
-        workspaces: root.workspaces.map(w =>
-          w.id === action.payload.workspaceId
-            ? { ...w, contributors: [...w.contributors, action.payload.contributor] }
-            : w
-        ),
-      }
-
+      return { ...root, workspaces: root.workspaces.map(w => w.id === action.payload.workspaceId ? { ...w, contributors: [...w.contributors, action.payload.contributor] } : w) }
     case 'REMOVE_CONTRIBUTOR':
-      return {
-        ...root,
-        workspaces: root.workspaces.map(w =>
-          w.id === action.payload.workspaceId
-            ? { ...w, contributors: w.contributors.filter(c => c.id !== action.payload.contributorId) }
-            : w
-        ),
-      }
-
-    case 'UPDATE_PROFILE':
-      return { ...root, profile: { ...root.profile, ...action.payload } }
-
+      return { ...root, workspaces: root.workspaces.map(w => w.id === action.payload.workspaceId ? { ...w, contributors: w.contributors.filter(c => c.id !== action.payload.contributorId) } : w) }
+    case 'UPDATE_PROFILE': return { ...root, profile: { ...root.profile, ...action.payload } }
     default: {
-      // Delegate workspace-level actions to the active workspace.
-      // When UPDATE_SETTINGS includes a name, keep ws.name in sync.
       return {
         ...root,
         workspaces: root.workspaces.map(w => {
@@ -157,9 +125,7 @@ function rootReducer(root: RootState, action: Action): RootState {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export function makeWorkspace(
-  appState: AppState,
-  id: string,
-  name: string,
+  appState: AppState, id: string, name: string,
   type: 'personal' | 'household' = 'personal',
   contributors: Contributor[] = [],
 ): Workspace {
@@ -208,8 +174,7 @@ function migrateToRootState(appState: AppState): RootState {
     profile: { name: profileName },
     workspaces: [
       dedupWorkspace(makeWorkspace(
-        appState,
-        wsId,
+        appState, wsId,
         profileName ? `${profileName}'s Budget` : 'Personal Budget',
         'personal',
       )),
@@ -217,15 +182,22 @@ function migrateToRootState(appState: AppState): RootState {
   }
 }
 
-const ROOT_KEY = 'budget_root_v1'
+function storageKey(userId: string) { return `budget_root_v1_${userId}` }
+const LEGACY_ROOT_KEY = 'budget_root_v1'
 const LEGACY_KEY = 'budget_app_v1'
 
-function loadFromStorage(): RootState | null {
+function loadFromStorage(userId: string): RootState | null {
   try {
-    const rootRaw = localStorage.getItem(ROOT_KEY)
+    // Try user-scoped key first
+    const userRaw = localStorage.getItem(storageKey(userId))
+    if (userRaw) {
+      const parsed = JSON.parse(userRaw) as RootState
+      return { ...parsed, workspaces: parsed.workspaces.map(dedupWorkspace) }
+    }
+    // Check for pre-auth legacy data to migrate
+    const rootRaw = localStorage.getItem(LEGACY_ROOT_KEY)
     if (rootRaw) {
       const parsed = JSON.parse(rootRaw) as RootState
-      // Dedup all workspaces on load
       return { ...parsed, workspaces: parsed.workspaces.map(dedupWorkspace) }
     }
     const legacyRaw = localStorage.getItem(LEGACY_KEY)
@@ -237,23 +209,23 @@ function loadFromStorage(): RootState | null {
   return null
 }
 
-function syncToSupabase(action: Action, activeWorkspace: Workspace) {
+function syncToSupabase(action: Action, activeWorkspace: Workspace, userId: string) {
   switch (action.type) {
-    case 'ADD_ACCOUNT': case 'UPDATE_ACCOUNT': db.upsertAccount(action.payload); break
+    case 'ADD_ACCOUNT': case 'UPDATE_ACCOUNT': db.upsertAccount(action.payload, userId); break
     case 'DELETE_ACCOUNT': db.deleteAccount(action.payload); break
-    case 'ADD_TRANSACTION': case 'UPDATE_TRANSACTION': db.upsertTransaction(action.payload); break
+    case 'ADD_TRANSACTION': case 'UPDATE_TRANSACTION': db.upsertTransaction(action.payload, userId); break
     case 'DELETE_TRANSACTION': db.deleteTransaction(action.payload); break
-    case 'ADD_CATEGORY': case 'UPDATE_CATEGORY': db.upsertCategory(action.payload); break
+    case 'ADD_CATEGORY': case 'UPDATE_CATEGORY': db.upsertCategory(action.payload, userId); break
     case 'DELETE_CATEGORY': db.deleteCategory(action.payload); break
-    case 'ADD_BUDGET': case 'UPDATE_BUDGET': db.upsertBudget(action.payload); break
+    case 'ADD_BUDGET': case 'UPDATE_BUDGET': db.upsertBudget(action.payload, userId); break
     case 'DELETE_BUDGET': db.deleteBudget(action.payload); break
-    case 'ADD_GOAL': case 'UPDATE_GOAL': db.upsertGoal(action.payload); break
+    case 'ADD_GOAL': case 'UPDATE_GOAL': db.upsertGoal(action.payload, userId); break
     case 'DELETE_GOAL': db.deleteGoal(action.payload); break
-    case 'ADD_NET_WORTH_ENTRY': db.upsertNetWorthEntry(action.payload); break
-    case 'ADD_SUBSCRIPTION': case 'UPDATE_SUBSCRIPTION': db.upsertSubscription(action.payload); break
+    case 'ADD_NET_WORTH_ENTRY': db.upsertNetWorthEntry(action.payload, userId); break
+    case 'ADD_SUBSCRIPTION': case 'UPDATE_SUBSCRIPTION': db.upsertSubscription(action.payload, userId); break
     case 'DELETE_SUBSCRIPTION': db.deleteSubscription(action.payload); break
-    case 'UPDATE_SETTINGS': db.saveSettings(activeWorkspace.settings); break
-    case 'RESET': db.seedDatabase(activeWorkspace); break
+    case 'UPDATE_SETTINGS': db.saveSettings(activeWorkspace.settings, userId); break
+    case 'RESET': db.seedDatabase(activeWorkspace, userId); break
   }
 }
 
@@ -266,9 +238,7 @@ const EMPTY_WS: Workspace = makeWorkspace(
     settings: { currency: 'USD', currencySymbol: '$', theme: 'dark', name: '', dashboardWidgets: [] },
     merchantRules: {},
   },
-  'personal',
-  'Personal Budget',
-  'personal',
+  'personal', 'Personal Budget', 'personal',
 )
 
 const EMPTY_ROOT: RootState = {
@@ -278,11 +248,9 @@ const EMPTY_ROOT: RootState = {
 }
 
 interface StoreContextType {
-  // Active workspace state — same API as before for all existing pages
   state: AppState
   dispatch: React.Dispatch<Action>
   loading: boolean
-  // New multi-workspace / profile API
   workspaces: Workspace[]
   activeWorkspaceId: string
   profile: UserProfile
@@ -297,38 +265,81 @@ const StoreContext = createContext<StoreContextType | null>(null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [rootState, rootDispatch] = useReducer(rootReducer, EMPTY_ROOT)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  // Load on mount
+  // Watch auth state and load user data when authenticated
   useEffect(() => {
-    const stored = loadFromStorage()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadUserData(session.user.id)
+      } else {
+        setLoading(false)
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUserId(session.user.id)
+        loadUserData(session.user.id)
+      } else {
+        setUserId(null)
+        rootDispatch({ type: 'SET_ROOT_STATE', payload: EMPTY_ROOT })
+        setLoading(false)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function loadUserData(uid: string) {
+    setLoading(true)
+    setUserId(uid)
+
+    const stored = loadFromStorage(uid)
     if (stored) {
       rootDispatch({ type: 'SET_ROOT_STATE', payload: stored })
+      // Migrate any pre-auth legacy data to this user's account
+      await migrateLegacyData(uid, stored)
       setLoading(false)
       return
     }
-    // No local data → try Supabase, then fall back to demo
-    db.loadState().then(async remote => {
+
+    // No local data → try Supabase
+    try {
+      const remote = await db.loadState(uid)
       if (remote && remote.accounts.length > 0) {
         rootDispatch({ type: 'SET_ROOT_STATE', payload: migrateToRootState(remote) })
       } else {
         const initial = getInitialData()
         const root = migrateToRootState(initial)
         rootDispatch({ type: 'SET_ROOT_STATE', payload: root })
-        await db.seedDatabase(root.workspaces[0])
+        await db.seedDatabase(root.workspaces[0], uid)
       }
-      setLoading(false)
-    }).catch(() => {
+    } catch {
       rootDispatch({ type: 'SET_ROOT_STATE', payload: migrateToRootState(getInitialData()) })
-      setLoading(false)
-    })
-  }, [])
-
-  // Persist to localStorage
-  useEffect(() => {
-    if (!loading) {
-      try { localStorage.setItem(ROOT_KEY, JSON.stringify(rootState)) } catch {}
     }
-  }, [rootState, loading])
+    setLoading(false)
+  }
+
+  // One-time migration: stamp pre-auth data with this user's ID in Supabase
+  async function migrateLegacyData(uid: string, state: RootState) {
+    const hadLegacy = !!localStorage.getItem(LEGACY_ROOT_KEY) || !!localStorage.getItem(LEGACY_KEY)
+    if (!hadLegacy) return
+    try {
+      for (const ws of state.workspaces) {
+        await db.seedDatabase(ws, uid)
+      }
+      localStorage.removeItem(LEGACY_ROOT_KEY)
+      localStorage.removeItem(LEGACY_KEY)
+    } catch {}
+  }
+
+  // Persist to user-scoped localStorage
+  useEffect(() => {
+    if (!loading && userId) {
+      try { localStorage.setItem(storageKey(userId), JSON.stringify(rootState)) } catch {}
+    }
+  }, [rootState, loading, userId])
 
   const activeWorkspace = rootState.workspaces.find(w => w.id === rootState.activeWorkspaceId)
     ?? rootState.workspaces[0]
@@ -336,10 +347,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function wrappedDispatch(action: Action) {
     rootDispatch(action)
-    // Compute next state for Supabase sync
-    const nextRoot = rootReducer(rootState, action)
-    const nextActive = nextRoot.workspaces.find(w => w.id === nextRoot.activeWorkspaceId) ?? nextRoot.workspaces[0]
-    syncToSupabase(action, nextActive ?? activeWorkspace)
+    if (userId) {
+      const nextRoot = rootReducer(rootState, action)
+      const nextActive = nextRoot.workspaces.find(w => w.id === nextRoot.activeWorkspaceId) ?? nextRoot.workspaces[0]
+      syncToSupabase(action, nextActive ?? activeWorkspace, userId)
+    }
   }
 
   const ctx: StoreContextType = {

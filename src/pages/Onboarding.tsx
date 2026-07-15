@@ -5,6 +5,7 @@ import { Input, Field } from '../components/ui/Input'
 import { useStore } from '../store/useStore'
 import { supabase } from '../lib/supabase'
 import { getInitialData } from '../store/initialData'
+import { useAuth } from '../lib/auth'
 
 const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
@@ -15,6 +16,7 @@ interface OnboardingProps {
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const { dispatch } = useStore()
+  const { user } = useAuth()
   const [step, setStep] = useState<'choose' | 'clearing' | 'name'>('choose')
   const [appName, setAppName] = useState('')
   const [currencySymbol, setCurrencySymbol] = useState('$')
@@ -48,7 +50,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       settings: { ...initial.settings, name: name || 'My Budget', currencySymbol: currencySymbol || '$' },
     }
     const { seedDatabase } = await import('../lib/db')
-    await seedDatabase(cleanState)
+    if (user) await seedDatabase(cleanState, user.id)
     dispatch({ type: 'SET_STATE', payload: cleanState })
     if (name) dispatch({ type: 'UPDATE_PROFILE', payload: { name } } as any)
     onComplete()

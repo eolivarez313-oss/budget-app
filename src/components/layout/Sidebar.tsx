@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Home, LayoutDashboard, ArrowLeftRight, PieChart, Target, TrendingUp,
   CreditCard, BarChart3, RefreshCw, Settings, Activity,
-  ChevronDown, Plus, Check, User, Waves, ChevronsLeft, ChevronsRight,
+  ChevronDown, Plus, Check, User, Waves, ChevronsLeft, ChevronsRight, LogOut,
 } from 'lucide-react'
 import { useStore } from '../../store/useStore'
+import { useAuth } from '../../lib/auth'
 
 const nav = [
   { to: '/home',          icon: Home,            label: 'Overview'     },
@@ -48,8 +49,14 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { workspaces, activeWorkspaceId, profile, switchWorkspace } = useStore()
+  const { signOut, user } = useAuth()
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+
+  async function handleSignOut() {
+    await signOut()
+    navigate('/login', { replace: true })
+  }
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId) ?? workspaces[0]
 
@@ -262,6 +269,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           )}
         </NavLink>
+
+        {/* Sign out */}
+        <button
+          onClick={handleSignOut}
+          title="Sign out"
+          style={{
+            width: '100%', marginTop: 4,
+            display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: 6, padding: collapsed ? '7px 0' : '7px 10px', borderRadius: 8,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--danger-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--danger)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)' }}
+        >
+          <LogOut size={13} style={{ flexShrink: 0 }} />
+          {!collapsed && <span style={{ fontSize: 10, fontWeight: 500 }}>Sign out</span>}
+        </button>
 
         {/* Collapse toggle */}
         <button

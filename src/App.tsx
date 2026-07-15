@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { StoreProvider, useStore } from './store/useStore'
+import { AuthProvider, useAuth } from './lib/auth'
 import { Layout } from './components/layout/Layout'
-import { Navigate } from 'react-router-dom'
 import { Dashboard } from './pages/Dashboard'
 import { Transactions } from './pages/Transactions'
 import { Budgets } from './pages/Budgets'
@@ -19,10 +19,59 @@ import { Profile } from './pages/Profile'
 import { WorkspaceCreate } from './pages/WorkspaceCreate'
 import { Hub } from './pages/Hub'
 import { Flow } from './pages/Flow'
+import { Login } from './pages/Login'
+import { Signup } from './pages/Signup'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { ResetPassword } from './pages/ResetPassword'
 
 const ONBOARDING_KEY = 'budget_onboarding_done'
-
 const HUB_ROUTES = ['/hub', '/workspace/new']
+
+// ── Loading spinner (shared) ─────────────────────────────────────────────────
+
+function Spinner({ label = 'Loading Meridian…' }: { label?: string }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '100vh', background: 'var(--background)', flexDirection: 'column', gap: 16,
+    }}>
+      <div style={{ position: 'relative', width: 56, height: 56 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 16,
+          background: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{
+            fontFamily: '"Fraunces", ui-serif, Georgia, serif',
+            fontSize: 22, fontWeight: 700, color: 'var(--accent-foreground)',
+            letterSpacing: '-0.03em',
+          }}>M</span>
+        </div>
+        <div style={{
+          position: 'absolute', inset: -4, borderRadius: 20,
+          border: '2px solid transparent',
+          borderTopColor: 'var(--primary)',
+          animation: 'spin 0.9s linear infinite',
+        }} />
+      </div>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{label}</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
+
+// ── Route guard: redirect to /login if not authenticated ─────────────────────
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) return <Spinner />
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  return <>{children}</>
+}
+
+// ── App routes (protected) ───────────────────────────────────────────────────
 
 function AppRoutes() {
   const { loading } = useStore()
@@ -41,38 +90,8 @@ function AppRoutes() {
     setShowOnboarding(false)
   }
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: 'var(--background)', flexDirection: 'column', gap: 16,
-      }}>
-        <div style={{ position: 'relative', width: 56, height: 56 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{
-              fontFamily: '"Fraunces", ui-serif, Georgia, serif',
-              fontSize: 22, fontWeight: 700, color: 'var(--accent-foreground)',
-              letterSpacing: '-0.03em',
-            }}>M</span>
-          </div>
-          <div style={{
-            position: 'absolute', inset: -4, borderRadius: 20,
-            border: '2px solid transparent',
-            borderTopColor: 'var(--primary)',
-            animation: 'spin 0.9s linear infinite',
-          }} />
-        </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading Meridian…</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    )
-  }
+  if (loading) return <Spinner />
 
-  // Hub routes render full-screen without the sidebar Layout
   const isHubRoute = HUB_ROUTES.some(r => location.pathname === r)
 
   if (isHubRoute) {
@@ -113,12 +132,29 @@ function AppRoutes() {
   )
 }
 
+// ── Root ─────────────────────────────────────────────────────────────────────
+
 export default function App() {
   return (
-    <StoreProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </StoreProvider>
+    <AuthProvider>
+      <StoreProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public auth routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* All other routes require authentication */}
+            <Route path="/*" element={
+              <RequireAuth>
+                <AppRoutes />
+              </RequireAuth>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </StoreProvider>
+    </AuthProvider>
   )
 }

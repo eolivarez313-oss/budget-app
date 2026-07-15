@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { User, Bell, Moon, Trash2, ChevronRight, Check } from 'lucide-react'
+import { User, Bell, Moon, Trash2, ChevronRight, Check, KeyRound, Mail, Shield, X } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import { useAuth } from '../lib/auth'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Field } from '../components/ui/Input'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { Modal } from '../components/ui/Modal'
 import { formatCurrency } from '../utils/formatters'
+import { useNavigate } from 'react-router-dom'
 
 const ACCENT = 'var(--accent)'
 
@@ -77,11 +80,41 @@ function Row({ icon: Icon, label, value, action, onAction, danger }: {
   )
 }
 
+function passwordRequirements(pw: string) {
+  return [
+    { label: 'At least 8 characters', met: pw.length >= 8 },
+    { label: 'At least one letter', met: /[a-zA-Z]/.test(pw) },
+    { label: 'At least one number', met: /[0-9]/.test(pw) },
+  ]
+}
+
 export function Profile() {
   const { profile, updateProfile, workspaces, activeWorkspaceId, deleteWorkspace, switchWorkspace } = useStore()
+  const { user, updatePassword, updateEmail, deleteAccount, signOut } = useAuth()
+  const navigate = useNavigate()
+
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState(profile.name)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  // Change password modal
+  const [showChangePass, setShowChangePass] = useState(false)
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [passError, setPassError] = useState('')
+  const [passSuccess, setPassSuccess] = useState(false)
+  const [passLoading, setPassLoading] = useState(false)
+
+  // Change email modal
+  const [showChangeEmail, setShowChangeEmail] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailSuccess, setEmailSuccess] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
+
+  // Delete account confirm
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId)
   const sym = activeWs?.settings.currencySymbol ?? '$'
@@ -234,6 +267,129 @@ export function Profile() {
         <Row icon={Moon} label="Appearance" value="Light mode" action="Default" />
         <Row icon={Bell} label="Notifications" value="Coming soon" />
       </Section>
+
+      {/* Account security */}
+      <Section title="Account">
+        <Row
+          icon={Mail}
+          label="Email address"
+          value={user?.email ?? '—'}
+          action="Change"
+          onAction={() => { setNewEmail(''); setEmailError(''); setEmailSuccess(false); setShowChangeEmail(true) }}
+        />
+        <Row
+          icon={KeyRound}
+          label="Password"
+          value="••••••••"
+          action="Change"
+          onAction={() => { setNewPass(''); setConfirmPass(''); setPassError(''); setPassSuccess(false); setShowChangePass(true) }}
+        />
+        <Row
+          icon={Shield}
+          label="Delete account"
+          value="Permanently removes all data"
+          danger
+          onAction={() => setShowDeleteAccount(true)}
+        />
+      </Section>
+
+      {/* Change password modal */}
+      <Modal open={showChangePass} onClose={() => setShowChangePass(false)} title="Change password" size="sm">
+        {passSuccess ? (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <Check size={32} color="var(--success)" style={{ margin: '0 auto 12px' }} />
+            <p style={{ fontSize: 'var(--text-label)', color: 'var(--text)' }}>Password updated successfully.</p>
+            <Button style={{ marginTop: 16, width: '100%' }} onClick={() => setShowChangePass(false)}>Done</Button>
+          </div>
+        ) : (
+          <form onSubmit={async e => {
+            e.preventDefault()
+            const reqs = passwordRequirements(newPass)
+            if (!reqs.every(r => r.met)) { setPassError('Password does not meet requirements.'); return }
+            if (newPass !== confirmPass) { setPassError('Passwords do not match.'); return }
+            setPassError(''); setPassLoading(true)
+            const { error } = await updatePassword(newPass)
+            setPassLoading(false)
+            if (error) setPassError(error)
+            else setPassSuccess(true)
+          }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {passError && (
+              <p style={{ fontSize: 'var(--text-label)', color: 'var(--danger)', background: 'var(--danger-dim)', padding: '8px 12px', borderRadius: 8 }}>{passError}</p>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Field label="New password">
+                <Input type="password" autoComplete="new-password" placeholder="••••••••" value={newPass} onChange={e => setNewPass(e.target.value)} required />
+              </Field>
+              {newPass.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 2 }}>
+                  {passwordRequirements(newPass).map(req => (
+                    <div key={req.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {req.met ? <Check size={11} color="var(--success)" /> : <X size={11} color="var(--text-dim)" />}
+                      <span style={{ fontSize: 'var(--text-micro)', color: req.met ? 'var(--success)' : 'var(--text-dim)' }}>{req.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Field label="Confirm new password">
+              <Input type="password" autoComplete="new-password" placeholder="••••••••" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} required />
+            </Field>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <Button variant="secondary" type="button" onClick={() => setShowChangePass(false)}>Cancel</Button>
+              <Button type="submit" disabled={passLoading}>{passLoading ? 'Updating…' : 'Update password'}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Change email modal */}
+      <Modal open={showChangeEmail} onClose={() => setShowChangeEmail(false)} title="Change email" size="sm">
+        {emailSuccess ? (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <Check size={32} color="var(--success)" style={{ margin: '0 auto 12px' }} />
+            <p style={{ fontSize: 'var(--text-label)', color: 'var(--text)' }}>Check your new email address to confirm the change.</p>
+            <Button style={{ marginTop: 16, width: '100%' }} onClick={() => setShowChangeEmail(false)}>Done</Button>
+          </div>
+        ) : (
+          <form onSubmit={async e => {
+            e.preventDefault()
+            if (!newEmail.includes('@')) { setEmailError('Please enter a valid email address.'); return }
+            setEmailError(''); setEmailLoading(true)
+            const { error } = await updateEmail(newEmail)
+            setEmailLoading(false)
+            if (error) setEmailError(error)
+            else setEmailSuccess(true)
+          }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {emailError && (
+              <p style={{ fontSize: 'var(--text-label)', color: 'var(--danger)', background: 'var(--danger-dim)', padding: '8px 12px', borderRadius: 8 }}>{emailError}</p>
+            )}
+            <p style={{ fontSize: 'var(--text-label)', color: 'var(--text-muted)' }}>Current: <strong style={{ color: 'var(--text)' }}>{user?.email}</strong></p>
+            <Field label="New email address">
+              <Input type="email" autoComplete="email" placeholder="new@example.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} required />
+            </Field>
+            <p style={{ fontSize: 'var(--text-micro)', color: 'var(--text-muted)' }}>A confirmation link will be sent to your new email address.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Button variant="secondary" type="button" onClick={() => setShowChangeEmail(false)}>Cancel</Button>
+              <Button type="submit" disabled={emailLoading}>{emailLoading ? 'Sending…' : 'Send confirmation'}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Delete account confirm */}
+      <ConfirmModal
+        open={showDeleteAccount}
+        title="Delete your account?"
+        message={`This will permanently delete your account and all data: ${workspaces.length} workspace${workspaces.length !== 1 ? 's' : ''}, all transactions, budgets, accounts, goals, and bills. This cannot be undone.`}
+        confirmLabel={deleteLoading ? 'Deleting…' : 'Delete my account'}
+        onConfirm={async () => {
+          setDeleteLoading(true)
+          await deleteAccount()
+          setDeleteLoading(false)
+          navigate('/login', { replace: true })
+        }}
+        onCancel={() => setShowDeleteAccount(false)}
+      />
 
       {/* Confirm delete workspace */}
       <ConfirmModal
