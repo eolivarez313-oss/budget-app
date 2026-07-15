@@ -82,11 +82,11 @@ interface AllocGroup {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Flow() {
-  const store = useStore() as any
-  const transactions  = store.transactions  ?? []
-  const categories    = store.categories    ?? []
-  const subscriptions = store.subscriptions ?? []
-  const settings      = store.settings      ?? {}
+  const { state } = useStore()
+  const transactions  = state.transactions  ?? []
+  const categories    = state.categories    ?? []
+  const subscriptions = state.subscriptions ?? []
+  const settings      = state.settings      ?? {}
   const sym = settings.currencySymbol ?? '$'
 
   const [hovered, setHovered] = useState<string | null>(null)
