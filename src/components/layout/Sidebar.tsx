@@ -74,12 +74,12 @@ export function Sidebar() {
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 12px', borderRadius: 10,
-            background: dropdownOpen ? '#F3F4F6' : '#F7F8FA',
+            background: dropdownOpen ? '#EDE8DF' : '#F0EBE3',
             border: '1px solid var(--border)',
             cursor: 'pointer', transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
-          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = '#F7F8FA' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
+          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = '#F0EBE3' }}
         >
           <div style={{
             width: 28, height: 28, borderRadius: 8,
@@ -123,7 +123,7 @@ export function Sidebar() {
                     background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : 'transparent',
                     border: 'none', transition: 'background 0.12s', textAlign: 'left',
                   }}
-                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
+                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
                   onMouseLeave={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <div style={{
@@ -201,14 +201,14 @@ export function Sidebar() {
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px', borderRadius: 10,
             textDecoration: 'none',
-            background: isActive ? 'var(--accent-dim)' : '#F7F8FA',
+            background: isActive ? 'var(--accent-dim)' : '#F0EBE3',
             border: '1px solid var(--border)',
             transition: 'background 0.15s',
           })}
         >
           {profile.name
             ? <Initials name={profile.name} size={30} />
-            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#E9EBEF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#DDD6CA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={14} color="var(--text-muted)" />
               </div>
           }

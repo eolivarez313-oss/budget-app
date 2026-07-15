@@ -111,7 +111,7 @@ export function WorkspaceCreate() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ background: '#F3F4F6', border: '1px solid var(--border)', borderRadius: 8, padding: 8, cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
+          style={{ background: '#EDE8DF', border: '1px solid var(--border)', borderRadius: 8, padding: 8, cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
         >
           <ArrowLeft size={16} />
         </button>
@@ -180,7 +180,7 @@ export function WorkspaceCreate() {
                   display: 'flex', alignItems: 'center', gap: 14,
                   padding: '16px 18px', borderRadius: 12, textAlign: 'left',
                   cursor: 'pointer', transition: 'all 0.15s',
-                  background: type === opt.value ? 'var(--accent-dim)' : '#F9FAFB',
+                  background: type === opt.value ? 'var(--accent-dim)' : '#F5F0E8',
                   border: `2px solid ${type === opt.value ? 'var(--accent)' : 'var(--border)'}`,
                 }}
               >
@@ -235,7 +235,7 @@ export function WorkspaceCreate() {
               {contributors.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                   {contributors.map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#F9FAFB', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#F5F0E8', borderRadius: 10, border: '1px solid var(--border)' }}>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.name}</p>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>

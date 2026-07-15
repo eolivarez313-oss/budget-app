@@ -18,7 +18,7 @@ export function Button({ variant = 'primary', size = 'md', children, style, disa
 
   const variants: Record<string, React.CSSProperties> = {
     primary:   { background: 'var(--accent)',   color: '#fff',           borderColor: 'var(--accent)' },
-    secondary: { background: '#F3F4F6',          color: 'var(--text)',    borderColor: 'var(--border)' },
+    secondary: { background: '#EDE8DF',          color: 'var(--text)',    borderColor: 'var(--border)' },
     danger:    { background: 'var(--danger-dim)', color: 'var(--danger)', borderColor: 'rgba(220,38,38,0.2)' },
     ghost:     { background: 'transparent',      color: 'var(--text-muted)', borderColor: 'transparent' },
   }
@@ -31,7 +31,7 @@ export function Button({ variant = 'primary', size = 'md', children, style, disa
 
   const hovers: Record<string, string> = {
     primary:   'var(--accent-hover)',
-    secondary: '#E9EBEF',
+    secondary: '#E3DCCF',
     danger:    'rgba(220,38,38,0.14)',
     ghost:     'rgba(0,0,0,0.04)',
   }

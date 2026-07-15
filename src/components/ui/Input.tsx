@@ -2,7 +2,7 @@ import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, Reac
 
 const base: React.CSSProperties = {
   width: '100%',
-  background: '#F9FAFB',
+  background: '#F5F0E8',
   border: '1px solid var(--border)',
   borderRadius: 10,
   padding: '10px 12px',
@@ -32,13 +32,13 @@ export function Input({ style, onFocus, onBlur, ...props }: InputHTMLAttributes<
       onFocus={e => {
         e.currentTarget.style.borderColor = 'var(--accent)'
         e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
-        e.currentTarget.style.background = '#FFFFFF'
+        e.currentTarget.style.background = 'var(--surface)'
         onFocus?.(e)
       }}
       onBlur={e => {
         e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F9FAFB'
+        e.currentTarget.style.background = '#F5F0E8'
         onBlur?.(e)
       }}
       {...props}
@@ -83,13 +83,13 @@ export function Textarea({ style, onFocus, onBlur, ...props }: TextareaHTMLAttri
       onFocus={e => {
         e.currentTarget.style.borderColor = 'var(--accent)'
         e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
-        e.currentTarget.style.background = '#FFFFFF'
+        e.currentTarget.style.background = 'var(--surface)'
         onFocus?.(e)
       }}
       onBlur={e => {
         e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F9FAFB'
+        e.currentTarget.style.background = '#F5F0E8'
         onBlur?.(e)
       }}
       {...props}

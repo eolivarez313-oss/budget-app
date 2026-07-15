@@ -58,7 +58,7 @@ export function ConfirmModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: danger ? 'var(--danger-dim)' : '#F3F4F6',
+                background: danger ? 'var(--danger-dim)' : '#EDE8DF',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <AlertTriangle size={18} style={{ color: danger ? 'var(--danger)' : 'var(--text-muted)' }} />

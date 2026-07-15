@@ -61,12 +61,12 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
                 onClick={onClose}
                 style={{
                   width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)',
-                  background: '#F3F4F6', cursor: 'pointer', display: 'flex',
+                  background: '#EDE8DF', cursor: 'pointer', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#E9EBEF' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#DDD6CA' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
               >
                 <X size={14} />
               </button>
