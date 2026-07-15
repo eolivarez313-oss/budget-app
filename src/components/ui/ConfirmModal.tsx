@@ -39,7 +39,7 @@ export function ConfirmModal({
         >
           <div
             onClick={onCancel}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.94, y: 10 }}
@@ -49,8 +49,8 @@ export function ConfirmModal({
             style={{
               position: 'relative', width: '100%', maxWidth: 400,
               background: 'var(--elevated)', borderRadius: 18,
-              border: danger ? '1px solid rgba(239,68,68,0.25)' : '1px solid var(--border)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+              border: danger ? '1px solid rgba(220,38,38,0.2)' : '1px solid var(--border)',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
               padding: '24px 28px',
               display: 'flex', flexDirection: 'column', gap: 16,
             }}
@@ -58,7 +58,7 @@ export function ConfirmModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: danger ? 'var(--danger-dim)' : 'rgba(255,255,255,0.06)',
+                background: danger ? 'var(--danger-dim)' : '#F3F4F6',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <AlertTriangle size={18} style={{ color: danger ? 'var(--danger)' : 'var(--text-muted)' }} />

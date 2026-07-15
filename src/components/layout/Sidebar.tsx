@@ -6,9 +6,6 @@ import {
   ChevronDown, Plus, Check, User,
 } from 'lucide-react'
 import { useStore } from '../../store/useStore'
-import { makeWorkspace } from '../../store/useStore'
-import { getInitialData } from '../../store/initialData'
-import { uuid } from '../../utils/uuid'
 
 const nav = [
   { to: '/home',          icon: Home,           label: 'Home',         exact: true },
@@ -32,7 +29,7 @@ function Initials({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg, var(--accent), #04b07a)',
+      background: 'linear-gradient(135deg, var(--accent), #09a46d)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.36, fontWeight: 700, color: '#fff',
       flexShrink: 0, letterSpacing: '-0.5px',
@@ -43,7 +40,7 @@ function Initials({ name, size = 32 }: { name: string; size?: number }) {
 }
 
 export function Sidebar() {
-  const { workspaces, activeWorkspaceId, profile, switchWorkspace, createWorkspace } = useStore()
+  const { workspaces, activeWorkspaceId, profile, switchWorkspace } = useStore()
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -68,6 +65,7 @@ export function Sidebar() {
       display: 'flex', flexDirection: 'column',
       minHeight: '100vh',
       borderRight: '1px solid var(--border)',
+      boxShadow: '1px 0 0 var(--border)',
     }}>
       {/* Workspace switcher */}
       <div style={{ padding: '20px 14px 14px', position: 'relative' }}>
@@ -76,12 +74,12 @@ export function Sidebar() {
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 12px', borderRadius: 10,
-            background: dropdownOpen ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+            background: dropdownOpen ? '#F3F4F6' : '#F7F8FA',
             border: '1px solid var(--border)',
             cursor: 'pointer', transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)' }}
-          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
+          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = '#F7F8FA' }}
         >
           <div style={{
             width: 28, height: 28, borderRadius: 8,
@@ -111,7 +109,7 @@ export function Sidebar() {
             <div style={{
               position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 100,
               background: 'var(--elevated)', border: '1px solid var(--border)',
-              borderRadius: 12, boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+              borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
               padding: '6px',
               marginTop: 4,
             }}>
@@ -125,7 +123,7 @@ export function Sidebar() {
                     background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : 'transparent',
                     border: 'none', transition: 'background 0.12s', textAlign: 'left',
                   }}
-                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
                   onMouseLeave={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <div style={{
@@ -203,14 +201,14 @@ export function Sidebar() {
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px', borderRadius: 10,
             textDecoration: 'none',
-            background: isActive ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+            background: isActive ? 'var(--accent-dim)' : '#F7F8FA',
             border: '1px solid var(--border)',
             transition: 'background 0.15s',
           })}
         >
           {profile.name
             ? <Initials name={profile.name} size={30} />
-            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#E9EBEF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={14} color="var(--text-muted)" />
               </div>
           }

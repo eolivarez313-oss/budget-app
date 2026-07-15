@@ -31,21 +31,12 @@ function dailySubline(): string {
   return SUBLINES[dayIndex % SUBLINES.length]
 }
 
-function daysUntilNextPaycheck(payFrequency: string, transactions: any[]): number {
-  // Find last income transaction and project forward based on frequency
-  const freqDays: Record<string, number> = { weekly: 7, biweekly: 14, 'semi-monthly': 15, monthly: 30 }
-  const days = freqDays[payFrequency] ?? 14
-  const incomes = transactions.filter(t => t.type === 'income').sort((a, b) => b.date.localeCompare(a.date))
-  if (incomes.length === 0) return days
-  const lastDate = new Date(incomes[0].date)
-  const nextDate = new Date(lastDate)
-  nextDate.setDate(nextDate.getDate() + days)
+// Paychecks land every Friday. Returns 0 if today is Friday.
+function daysUntilNextPaycheck(): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  nextDate.setHours(0, 0, 0, 0)
-  const diff = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  // If in the past (missed a cycle), project from today
-  return diff > 0 ? diff : days - (Math.abs(diff) % days)
+  const dayOfWeek = today.getDay() // 0=Sun … 5=Fri … 6=Sat
+  return (5 - dayOfWeek + 7) % 7   // 0 on Friday, 6 on Saturday, 5 on Sunday, …
 }
 
 interface NamePromptProps {
@@ -57,7 +48,7 @@ function NamePrompt({ onSave }: NamePromptProps) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+      background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
       <div style={{
@@ -117,7 +108,7 @@ export function Home() {
   const daysLeftInWeek = 7 - dayOfWeek
   const safeToSpendToday = daysLeftInWeek > 0 ? Math.max(0, weeklyRemaining / daysLeftInWeek) : 0
 
-  const daysToPaycheck = daysUntilNextPaycheck(payFrequency, state.transactions)
+  const daysToPaycheck = daysUntilNextPaycheck()
 
   // Over-budget categories this month
   const monthBudgets = state.budgets.filter(b => b.month === month)

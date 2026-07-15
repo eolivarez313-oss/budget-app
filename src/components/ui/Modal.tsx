@@ -36,7 +36,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
         >
           <div
             onClick={onClose}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -48,7 +48,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
               maxHeight: 'calc(100vh - 64px)',
               background: 'var(--elevated)', borderRadius: 18,
               border: '1px solid var(--border)',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
               display: 'flex', flexDirection: 'column',
             }}
           >
@@ -61,12 +61,12 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
                 onClick={onClose}
                 style={{
                   width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)',
-                  background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex',
+                  background: '#F3F4F6', cursor: 'pointer', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#E9EBEF' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
               >
                 <X size={14} />
               </button>

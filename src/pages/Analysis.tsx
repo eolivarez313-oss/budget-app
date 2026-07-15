@@ -223,7 +223,7 @@ export function Analysis() {
 
         {/* Mode toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 3, gap: 2 }}>
+          <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 10, padding: 3, gap: 2 }}>
             {(['weekly', 'range'] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setViewMode(m)}
                 style={{
@@ -246,7 +246,7 @@ export function Analysis() {
               </button>
               <span style={{
                 fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '6px 16px', borderRadius: 8,
-                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : 'rgba(255,255,255,0.06)',
+                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : '#F3F4F6',
                 border: '1px solid var(--border)',
                 minWidth: 170, textAlign: 'center',
               }}>

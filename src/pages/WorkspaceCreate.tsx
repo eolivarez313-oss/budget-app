@@ -111,7 +111,7 @@ export function WorkspaceCreate() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
+          style={{ background: '#F3F4F6', border: '1px solid var(--border)', borderRadius: 8, padding: 8, cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}
         >
           <ArrowLeft size={16} />
         </button>
@@ -180,7 +180,7 @@ export function WorkspaceCreate() {
                   display: 'flex', alignItems: 'center', gap: 14,
                   padding: '16px 18px', borderRadius: 12, textAlign: 'left',
                   cursor: 'pointer', transition: 'all 0.15s',
-                  background: type === opt.value ? 'var(--accent-dim)' : 'rgba(255,255,255,0.03)',
+                  background: type === opt.value ? 'var(--accent-dim)' : '#F9FAFB',
                   border: `2px solid ${type === opt.value ? 'var(--accent)' : 'var(--border)'}`,
                 }}
               >
@@ -235,7 +235,7 @@ export function WorkspaceCreate() {
               {contributors.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                   {contributors.map(c => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#F9FAFB', borderRadius: 10, border: '1px solid var(--border)' }}>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.name}</p>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -251,7 +251,7 @@ export function WorkspaceCreate() {
               )}
 
               {/* Add new contributor form */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px', background: '#FAFBFC', borderRadius: 10, border: '1px solid var(--border)' }}>
                 <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add person</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <Field label="Name">

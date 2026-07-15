@@ -59,7 +59,7 @@ function Row({ icon: Icon, label, value, action, onAction, danger }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 8,
-          background: danger ? 'var(--danger-dim)' : 'rgba(255,255,255,0.06)',
+          background: danger ? 'var(--danger-dim)' : '#F3F4F6',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
         }}>
@@ -106,7 +106,7 @@ export function Profile() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {profile.name
             ? <Initials name={profile.name} size={72} />
-            : <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#E9EBEF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={28} color="var(--text-muted)" />
               </div>
           }
@@ -156,7 +156,7 @@ export function Profile() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: 8, background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : 'rgba(255,255,255,0.06)',
+                width: 32, height: 32, borderRadius: 8, background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : '#F3F4F6',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 14, fontWeight: 700, color: ws.id === activeWorkspaceId ? ACCENT : 'var(--text-muted)',
               }}>

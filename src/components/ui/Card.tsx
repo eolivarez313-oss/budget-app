@@ -13,7 +13,7 @@ const base: CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
   borderRadius: 16,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
 }
 
 export function Card({ children, className = '', style, onClick, hover }: CardProps) {

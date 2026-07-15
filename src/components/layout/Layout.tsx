@@ -12,7 +12,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <Sidebar />
       <main style={{
         flex: 1, minWidth: 0, overflowY: 'auto',
-        padding: '32px 40px',
+        padding: '36px 44px',
         position: 'relative',
         background: 'var(--bg)',
       }}>
