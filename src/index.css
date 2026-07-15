@@ -16,29 +16,29 @@ html, body {
    All components should use these vars; avoid hardcoding colors in JS.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces */
-  --bg:            #0D1117;   /* page background — darkest */
-  --sidebar:       #0A0F1A;   /* sidebar — slightly darker than bg */
-  --surface:       #161C2D;   /* cards, panels */
-  --surface-hover: #1C2340;   /* card hover state */
-  --elevated:      #1E2742;   /* modals, popovers — lightest surface */
-  --border:        rgba(255,255,255,0.07);
+  /* Surfaces — charcoal palette, softer than near-black */
+  --bg:            #1E2029;   /* page background — dark charcoal, not near-black */
+  --sidebar:       #191C24;   /* sidebar — slightly deeper than bg */
+  --surface:       #272B38;   /* cards, panels — gentle lift off bg */
+  --surface-hover: #2E3242;   /* card hover state */
+  --elevated:      #313548;   /* modals, popovers — lightest surface */
+  --border:        rgba(255,255,255,0.09);
 
   /* Accent & status */
-  --accent:        #06C68A;   /* primary green — buttons, active states */
-  --accent-dim:    rgba(6,198,138,0.12);
-  --accent-hover:  #04b07a;
-  --danger:        #ef4444;
-  --danger-dim:    rgba(239,68,68,0.12);
-  --warning:       #f59e0b;
-  --warning-dim:   rgba(245,158,11,0.12);
-  --info:          #60a5fa;
-  --info-dim:      rgba(96,165,250,0.12);
+  --accent:        #10C484;   /* green — slightly softened from pure neon */
+  --accent-dim:    rgba(16,196,132,0.13);
+  --accent-hover:  #0daf75;
+  --danger:        #f06060;
+  --danger-dim:    rgba(240,96,96,0.13);
+  --warning:       #f5a623;
+  --warning-dim:   rgba(245,166,35,0.13);
+  --info:          #6fb3f7;
+  --info-dim:      rgba(111,179,247,0.13);
 
-  /* Typography */
-  --text:          #E4E8F2;   /* primary text */
-  --text-muted:    #6B7A99;   /* labels, helper text */
-  --text-dim:      #3D4A66;   /* very faint — decorative only */
+  /* Typography — off-white to reduce glare */
+  --text:          #CDD2E1;   /* primary text — soft off-white */
+  --text-muted:    #7A8399;   /* labels, helper text */
+  --text-dim:      #4A5065;   /* very faint — decorative only */
 
   /* Spacing scale */
   --r-sm:  8px;

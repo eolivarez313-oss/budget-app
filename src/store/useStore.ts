@@ -136,16 +136,21 @@ function rootReducer(root: RootState, action: Action): RootState {
     case 'UPDATE_PROFILE':
       return { ...root, profile: { ...root.profile, ...action.payload } }
 
-    default:
-      // Delegate all workspace-level actions to the active workspace
+    default: {
+      // Delegate workspace-level actions to the active workspace.
+      // When UPDATE_SETTINGS includes a name, keep ws.name in sync.
       return {
         ...root,
-        workspaces: root.workspaces.map(w =>
-          w.id === root.activeWorkspaceId
-            ? workspaceReducer(w, action as WorkspaceAction)
-            : w
-        ),
+        workspaces: root.workspaces.map(w => {
+          if (w.id !== root.activeWorkspaceId) return w
+          const updated = workspaceReducer(w, action as WorkspaceAction)
+          if (action.type === 'UPDATE_SETTINGS' && (action as any).payload?.name) {
+            return { ...updated, name: (action as any).payload.name }
+          }
+          return updated
+        }),
       }
+    }
   }
 }
 
