@@ -1,23 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PieChart, ArrowLeftRight, Activity, MessageCircle, ArrowRight, AlertTriangle, Calendar, Wallet, LayoutDashboard } from 'lucide-react'
+import { PieChart, ArrowLeftRight, Activity, MessageCircle, ArrowRight, AlertTriangle, Calendar, Wallet, TrendingUp } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input, Field } from '../components/ui/Input'
+import { Input } from '../components/ui/Input'
 import { formatCurrency, currentMonth } from '../utils/formatters'
 import { getMonthIncome, getMonthExpenses, getCategorySpent } from '../utils/calculations'
-
-const ACCENT = 'var(--accent)'
-
-const SUBLINES = [
-  "Here's where things stand.",
-  "Ready when you are.",
-  "Let's get to it.",
-  "Your numbers at a glance.",
-  "Take a look.",
-  "Let's see what's going on.",
-]
+import { motion } from 'framer-motion'
 
 function greeting(name: string): string {
   const h = new Date().getHours()
@@ -25,24 +15,14 @@ function greeting(name: string): string {
   return name ? `Good ${period}, ${name.split(' ')[0]}.` : `Good ${period}.`
 }
 
-// Stable subline per day (rotates daily, not randomly on every render)
-function dailySubline(): string {
-  const dayIndex = new Date().getDay()
-  return SUBLINES[dayIndex % SUBLINES.length]
-}
-
-// Paychecks land every Friday. Returns 0 if today is Friday.
 function daysUntilNextPaycheck(): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const dayOfWeek = today.getDay() // 0=Sun … 5=Fri … 6=Sat
-  return (5 - dayOfWeek + 7) % 7   // 0 on Friday, 6 on Saturday, 5 on Sunday, …
+  const dayOfWeek = today.getDay()
+  return (5 - dayOfWeek + 7) % 7
 }
 
-interface NamePromptProps {
-  onSave: (name: string) => void
-}
-
+interface NamePromptProps { onSave: (name: string) => void }
 function NamePrompt({ onSave }: NamePromptProps) {
   const [name, setName] = useState('')
   return (
@@ -52,12 +32,12 @@ function NamePrompt({ onSave }: NamePromptProps) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
       <div style={{
-        background: 'var(--elevated)', borderRadius: 20,
+        background: 'var(--card)', borderRadius: 20,
         border: '1px solid var(--border)', padding: '40px 36px',
         width: '100%', maxWidth: 420, textAlign: 'center',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.18)',
       }}>
-        <div style={{ fontSize: 48, marginBottom: 20 }}>👋</div>
+        <div style={{ fontSize: 40, marginBottom: 20 }}>👋</div>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
           What should we call you?
         </h2>
@@ -95,22 +75,20 @@ export function Home() {
   const ppm = ppmMap[payFrequency] ?? 2
   const paycheckAmount = state.settings.paycheckAmount || (income > 0 ? income / ppm : 0)
 
-  // Safe to spend today = remaining budget / days left in week
   const activeSubs = state.subscriptions.filter(s => s.status === 'active')
   const billsMonthly = activeSubs.reduce((s, sub) =>
     s + (sub.frequency === 'monthly' ? sub.amount : sub.frequency === 'yearly' ? sub.amount / 12 : sub.amount * 4.33), 0)
-  const weeklyPaycheck = paycheckAmount / (ppm / 4) // normalize to weekly
+  const weeklyPaycheck = paycheckAmount / (ppm / 4)
   const weeklyBills = billsMonthly / 4
   const weeklyBudgets = state.budgets.filter(b => b.month === 'weekly')
   const weeklyAllocated = weeklyBudgets.reduce((s, b) => s + b.monthlyLimit, 0)
   const weeklyRemaining = weeklyPaycheck - weeklyBills - weeklyAllocated
-  const dayOfWeek = new Date().getDay() // 0=Sun ... 6=Sat
+  const dayOfWeek = new Date().getDay()
   const daysLeftInWeek = 7 - dayOfWeek
   const safeToSpendToday = daysLeftInWeek > 0 ? Math.max(0, weeklyRemaining / daysLeftInWeek) : 0
 
   const daysToPaycheck = daysUntilNextPaycheck()
 
-  // Over-budget categories this month
   const monthBudgets = state.budgets.filter(b => b.month === month)
   const overBudget = monthBudgets.filter(b => {
     const spent = getCategorySpent(state.transactions, b.categoryId, month)
@@ -122,8 +100,6 @@ export function Home() {
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId)
 
-  // Resolve whose name to show: for household workspaces use the contributor marked as "me",
-  // otherwise fall back to the profile name (personal budget or no contributor selected).
   const greetingName = (() => {
     if (activeWs?.type === 'household' && profile.myContributorId) {
       const me = activeWs.contributors.find(c => c.id === profile.myContributorId)
@@ -132,148 +108,254 @@ export function Home() {
     return profile.name
   })()
 
+  // Month totals for stat row
+  const monthlySpent   = getMonthExpenses(state.transactions, month)
+  const monthlyIncome  = income
+  const monthRemaining = monthlyIncome - billsMonthly - monthlySpent
+
+  // Recent transactions (last 5)
+  const recentTx = [...state.transactions]
+    .filter(t => t.type === 'expense')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5)
+
   const noName = !profile.name
 
   return (
     <>
       {noName && <NamePrompt onSave={name => updateProfile({ name })} />}
 
-      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 860, margin: '0 auto', width: '100%' }}>
+      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 920, margin: '0 auto', width: '100%' }}>
 
-        {/* Greeting */}
-        <div>
-          {activeWs && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '4px 10px', borderRadius: 9999,
-              background: 'var(--accent)', border: '1px solid var(--border)',
-              marginBottom: 14,
-            }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-foreground)' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-foreground)', letterSpacing: '0.04em' }}>
-                {activeWs.name}
-              </span>
-            </div>
-          )}
-          <h1 style={{ fontSize: 34, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
-            {greeting(greetingName)}
-          </h1>
-          <p style={{ fontSize: 16, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
-            {dailySubline()}
-          </p>
-        </div>
+        {/* ── Hero + side column ──────────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 18, alignItems: 'start' }}>
 
-        {/* Snapshot row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-          {/* Safe to spend */}
-          <Card style={{ padding: '20px 22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Wallet size={14} color="var(--accent-foreground)" />
+          {/* Hero card */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+            className="card-surface"
+            style={{ padding: '32px 36px' }}
+          >
+            {/* Budget badge */}
+            {activeWs && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px', borderRadius: 9999,
+                background: 'var(--accent)', marginBottom: 20,
+              }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent-foreground)' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent-foreground)', letterSpacing: '0.07em' }}>
+                  {activeWs.name}
+                </span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Safe to spend today
-              </span>
-            </div>
-            <p className="font-display" style={{ fontSize: 32, fontWeight: 700, color: safeToSpendToday > 0 ? 'var(--primary)' : 'var(--danger)', lineHeight: 1 }}>
+            )}
+
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 8 }}>
+              Safe to spend today
+            </p>
+            <p className="font-display" style={{
+              fontSize: 'clamp(44px, 6vw, 60px)', fontWeight: 700, lineHeight: 1,
+              color: safeToSpendToday > 0 ? 'var(--primary)' : 'var(--destructive)',
+              letterSpacing: '-0.03em', marginBottom: 10,
+            }}>
               {formatCurrency(safeToSpendToday, sym)}
             </p>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-              {weeklyRemaining >= 0 ? `${formatCurrency(weeklyRemaining, sym)} left this week` : 'Over weekly budget'}
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 28, lineHeight: 1.55 }}>
+              {greeting(greetingName)}&ensp;
+              {weeklyRemaining >= 0
+                ? `${formatCurrency(weeklyRemaining, sym)} left in your weekly envelope.`
+                : `You're ${formatCurrency(-weeklyRemaining, sym)} over this week's envelope.`
+              }
             </p>
-          </Card>
 
-          {/* Days to paycheck */}
-          <Card style={{ padding: '20px 22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--info-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Calendar size={14} color="var(--info)" />
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Next paycheck
-              </span>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <Button onClick={() => navigate('/budgets')} style={{ gap: 8 }}>
+                Open budget <ArrowRight size={14} />
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/transactions')} style={{ gap: 8 }}>
+                <ArrowLeftRight size={14} /> Transactions
+              </Button>
             </div>
-            <p className="font-display" style={{ fontSize: 32, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
-              {daysToPaycheck === 0 ? 'Today' : `${daysToPaycheck}d`}
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-              {paycheckAmount > 0 ? `${formatCurrency(paycheckAmount, sym)} expected` : 'Set paycheck in Settings'}
-            </p>
-          </Card>
+          </motion.div>
 
-          {/* Budget status */}
-          <Card style={{ padding: '20px 22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: overBudgetCat ? 'var(--warning-dim)' : 'var(--accent)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {overBudgetCat
-                  ? <AlertTriangle size={14} color="var(--warning)" />
-                  : <PieChart size={14} color={ACCENT} />
-                }
+          {/* Side column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Next paycheck */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.38, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+              className="card-surface"
+              style={{ padding: '22px 24px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'oklch(0.93 0.02 240)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Calendar size={13} color="oklch(0.42 0.09 240)" />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Next paycheck
+                </span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Budget status
-              </span>
-            </div>
-            {overBudgetCat ? (
-              <>
-                <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--warning)', lineHeight: 1.2 }}>
-                  {overBudget.length} {overBudget.length === 1 ? 'category' : 'categories'} over
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  {overBudgetCat.icon} {overBudgetCat.name} exceeded this month
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', lineHeight: 1.2 }}>On track</p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  {monthBudgets.length > 0 ? `All ${monthBudgets.length} budgets within limit` : 'No budgets set yet'}
-                </p>
-              </>
-            )}
-          </Card>
+              <p className="font-display" style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {daysToPaycheck === 0 ? 'Today' : `${daysToPaycheck}d`}
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>
+                {paycheckAmount > 0 ? `${formatCurrency(paycheckAmount, sym)} expected` : 'Set paycheck in Settings'}
+              </p>
+            </motion.div>
+
+            {/* Budget status */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.38, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+              className="card-surface"
+              style={{ padding: '22px 24px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8,
+                  background: overBudgetCat ? 'oklch(0.93 0.04 60)' : 'var(--accent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {overBudgetCat
+                    ? <AlertTriangle size={13} color="oklch(0.50 0.12 60)" />
+                    : <PieChart size={13} color="var(--accent-foreground)" />
+                  }
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Budget status
+                </span>
+              </div>
+              {overBudgetCat ? (
+                <>
+                  <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'oklch(0.50 0.12 60)', lineHeight: 1.2 }}>
+                    {overBudget.length} over
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>
+                    {overBudgetCat.icon} {overBudgetCat.name} exceeded
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', lineHeight: 1.2 }}>On track</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 5 }}>
+                    {monthBudgets.length > 0 ? `${monthBudgets.length} budgets within limit` : 'No budgets set yet'}
+                  </p>
+                </>
+              )}
+            </motion.div>
+
+            {/* Analysis link */}
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.38, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              onClick={() => navigate('/analysis')}
+              className="card-surface"
+              style={{
+                padding: '16px 20px', cursor: 'pointer', textAlign: 'left',
+                display: 'flex', alignItems: 'center', gap: 12,
+                background: 'transparent', fontFamily: 'inherit',
+                width: '100%', transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--secondary)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              <Activity size={15} color="var(--text-muted)" />
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', flex: 1 }}>View analysis</span>
+              <ArrowRight size={13} color="var(--text-dim)" />
+            </motion.button>
+          </div>
         </div>
 
-        {/* Primary CTA */}
-        <Card style={{ padding: '24px 28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
-                View your budget
-              </h2>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Allocate your {paycheckAmount > 0 ? formatCurrency(paycheckAmount, sym) : ''} paycheck across categories.
-              </p>
+        {/* ── Stat row ─────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.38, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}
+        >
+          {[
+            { label: 'Monthly income', value: formatCurrency(monthlyIncome, sym), icon: TrendingUp, color: 'oklch(0.42 0.075 155)' },
+            { label: 'Spent this month', value: formatCurrency(monthlySpent, sym), icon: ArrowLeftRight, color: 'oklch(0.52 0.13 30)' },
+            { label: 'Bills & subs', value: formatCurrency(billsMonthly, sym), icon: Calendar, color: 'oklch(0.46 0.10 240)' },
+          ].map((stat, i) => (
+            <div key={stat.label} className="card-surface" style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: stat.color + '1a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <stat.icon size={14} color={stat.color} />
+              </div>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>{stat.label}</p>
+                <p className="font-display" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', lineHeight: 1 }}>{stat.value}</p>
+              </div>
             </div>
-            <Button onClick={() => navigate('/budgets')} style={{ gap: 8 }}>
-              Open budget <ArrowRight size={14} />
-            </Button>
-          </div>
-        </Card>
+          ))}
+        </motion.div>
 
-        {/* Quick links */}
+        {/* ── Recent activity ───────────────────────────────────────── */}
+        {recentTx.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.38, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="card-surface"
+            style={{ padding: '20px 24px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Recent activity
+              </p>
+              <button
+                onClick={() => navigate('/transactions')}
+                style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                See all →
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {recentTx.map((tx, i) => {
+                const cat = state.categories.find(c => c.id === tx.categoryId)
+                return (
+                  <div key={tx.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 12px', borderRadius: 10,
+                    background: i % 2 === 0 ? 'transparent' : 'var(--secondary)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 16 }}>{cat?.icon || '•'}</span>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{tx.description}</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tx.date}</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
+                      −{formatCurrency(tx.amount, sym)}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Quick links ───────────────────────────────────────────── */}
         <div>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 12 }}>
             Jump to
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {[
               { icon: ArrowLeftRight, label: 'Transactions', to: '/transactions' },
-              { icon: Activity,       label: 'Analysis',     to: '/analysis' },
-              { icon: LayoutDashboard, label: 'Dashboard',  to: '/dashboard' },
-              { icon: MessageCircle,  label: 'AI Chat',     action: 'chat' },
-            ].map(({ icon: Icon, label, to, action }) => (
-              <Card
-                key={label}
-                hover
-                onClick={() => { if (to) navigate(to) }}
-                style={{ padding: '16px', textAlign: 'center', cursor: 'pointer' }}
-              >
-                <Icon size={20} color={ACCENT} style={{ margin: '0 auto 10px' }} />
+              { icon: Activity,        label: 'Analysis',    to: '/analysis' },
+              { icon: PieChart,        label: 'Budget',      to: '/budgets' },
+              { icon: MessageCircle,   label: 'AI Chat',     to: '/dashboard' },
+            ].map(({ icon: Icon, label, to }) => (
+              <Card key={label} hover onClick={() => navigate(to)} style={{ padding: '16px', textAlign: 'center', cursor: 'pointer' }}>
+                <Icon size={18} color="var(--primary)" style={{ margin: '0 auto 10px' }} />
                 <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>{label}</p>
               </Card>
             ))}
@@ -284,4 +366,3 @@ export function Home() {
     </>
   )
 }
-

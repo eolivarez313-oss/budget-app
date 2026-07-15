@@ -8,16 +8,16 @@ import {
 import { useStore } from '../../store/useStore'
 
 const nav = [
-  { to: '/home',          icon: Home,           label: 'Home',         exact: true },
-  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',   exact: true },
+  { to: '/home',          icon: Home,            label: 'Overview',     exact: true },
+  { to: '/budgets',       icon: PieChart,        label: 'Budget',       exact: false },
   { to: '/transactions',  icon: ArrowLeftRight,  label: 'Transactions', exact: false },
   { to: '/analysis',      icon: Activity,        label: 'Analysis',     exact: false },
-  { to: '/budgets',       icon: PieChart,        label: 'Budgets',      exact: false },
   { to: '/goals',         icon: Target,          label: 'Goals',        exact: false },
-  { to: '/net-worth',     icon: TrendingUp,      label: 'Net Worth',    exact: false },
   { to: '/accounts',      icon: CreditCard,      label: 'Accounts',     exact: false },
+  { to: '/net-worth',     icon: TrendingUp,      label: 'Net Worth',    exact: false },
   { to: '/subscriptions', icon: RefreshCw,       label: 'Bills',        exact: false },
   { to: '/reports',       icon: BarChart3,       label: 'Reports',      exact: false },
+  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',    exact: true },
   { to: '/settings',      icon: Settings,        label: 'Settings',     exact: false },
 ]
 
@@ -66,49 +66,68 @@ export function Sidebar() {
       minHeight: '100vh',
       borderRight: '1px solid var(--border)',
     }}>
-      {/* Workspace switcher — pill-shaped */}
-      <div style={{ padding: '20px 14px 14px', position: 'relative' }}>
+      {/* ── Meridian wordmark + back-to-hub ─────────────────────── */}
+      <div style={{ padding: '20px 16px 0' }}>
+        {/* Wordmark row — clickable → /hub */}
         <button
-          onClick={() => setDropdownOpen(o => !o)}
+          onClick={() => navigate('/hub')}
+          title="Back to Hub"
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 14px', borderRadius: 9999,
-            background: dropdownOpen ? 'var(--secondary)' : 'var(--surface)',
-            border: '1px solid var(--border)',
-            cursor: 'pointer', transition: 'background 0.15s',
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 12px', borderRadius: 10,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            fontFamily: 'inherit', textAlign: 'left',
+            transition: 'background 0.15s',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--secondary)' }}
-          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
         >
           <div style={{
-            width: 24, height: 24, borderRadius: 8,
-            background: 'var(--primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
+            width: 28, height: 28, borderRadius: 8,
+            background: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <span style={{ fontSize: 12, color: 'var(--primary-foreground)', fontWeight: 700 }}>
-              {(activeWs?.name ?? 'B')[0].toUpperCase()}
-            </span>
+            <Home size={13} color="var(--accent-foreground)" />
           </div>
-          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-              {activeWs?.name ?? 'My Budget'}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: '"Fraunces", ui-serif, Georgia, serif',
+              fontSize: 14, fontWeight: 600, color: 'var(--text)',
+              letterSpacing: '-0.02em', lineHeight: 1.2,
+            }}>
+              Meridian
             </p>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, textTransform: 'capitalize' }}>
-              {activeWs?.type ?? 'personal'}
-            </p>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>Back to hub</p>
           </div>
-          <ChevronDown size={13} color="var(--text-muted)" style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
 
-        {/* Dropdown — card-surface */}
+        {/* Current budget block */}
+        <div style={{ padding: '10px 12px 14px' }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+            Current budget
+          </p>
+          {/* Dropdown trigger */}
+          <button
+            onClick={() => setDropdownOpen(o => !o)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: 0, fontFamily: 'inherit', textAlign: 'left',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeWs?.name ?? 'My Budget'}
+            </span>
+            <ChevronDown size={12} color="var(--text-muted)" style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </button>
+        </div>
+
+        {/* Dropdown */}
         {dropdownOpen && (
-          <>
+          <div style={{ position: 'relative' }}>
             <div onClick={() => setDropdownOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
             <div className="card-surface" style={{
-              position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 100,
-              padding: '6px',
-              marginTop: 4,
+              position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, padding: '6px',
             }}>
               {workspaces.map(ws => (
                 <button
@@ -124,17 +143,17 @@ export function Sidebar() {
                   onMouseLeave={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <div style={{
-                    width: 24, height: 24, borderRadius: 6, background: 'var(--primary)',
+                    width: 22, height: 22, borderRadius: 6, background: 'var(--primary)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--primary-foreground)',
+                    flexShrink: 0, fontSize: 10, fontWeight: 700, color: 'var(--primary-foreground)',
                   }}>
                     {ws.name[0].toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</p>
+                    <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</p>
                     <p style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{ws.type}</p>
                   </div>
-                  {ws.id === activeWorkspaceId && <Check size={13} color="var(--accent-foreground)" />}
+                  {ws.id === activeWorkspaceId && <Check size={12} color="var(--accent-foreground)" />}
                 </button>
               ))}
               <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
@@ -144,32 +163,17 @@ export function Sidebar() {
                   width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                   padding: '9px 10px', borderRadius: 10, cursor: 'pointer',
                   background: 'transparent', border: 'none',
-                  color: 'var(--primary)', fontSize: 13, fontWeight: 500,
+                  color: 'var(--primary)', fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
                   transition: 'background 0.12s',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
-                <Plus size={13} /> New budget
+                <Plus size={12} /> New budget
               </button>
             </div>
-          </>
+          </div>
         )}
-      </div>
-
-      {/* Meridian wordmark — links back to Hub */}
-      <div style={{ padding: '18px 20px 10px' }}>
-        <button
-          onClick={() => navigate('/hub')}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            fontFamily: '"Fraunces", ui-serif, Georgia, serif',
-            fontSize: 17, fontWeight: 600, color: 'var(--text)',
-            letterSpacing: '-0.03em',
-          }}
-        >
-          Meridian
-        </button>
       </div>
 
       {/* Nav label */}
