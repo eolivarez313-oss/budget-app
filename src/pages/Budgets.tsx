@@ -9,8 +9,9 @@ import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { Button } from '../components/ui/Button'
 import { Input, Select, Field } from '../components/ui/Input'
-import { formatCurrency } from '../utils/formatters'
-import { Budget, Subscription, AppSettings } from '../types'
+import { formatCurrency, currentMonth } from '../utils/formatters'
+import { getMonthIncome } from '../utils/calculations'
+import { Budget, Subscription } from '../types'
 import { uuid } from '../utils/uuid'
 
 const GREEN = '#06C68A'
@@ -19,21 +20,13 @@ const BILLS_COLOR = '#f97316'
 const UNALLOCATED_COLOR = '#D0D5DD'
 const WEEKLY_SENTINEL = 'weekly'
 
-function weeklyFromSub(sub: Subscription): number {
-  if (sub.frequency === 'weekly') return sub.amount
-  if (sub.frequency === 'yearly') return sub.amount / 52
-  return sub.amount / 4
-}
+const PAYCHECKS_PER_MONTH: Record<string, number> = { weekly: 4, biweekly: 2, 'semi-monthly': 2, monthly: 1 }
+const FREQ_LABEL: Record<string, string> = { weekly: 'Weekly', biweekly: 'Every 2 Weeks', 'semi-monthly': 'Twice a Month', monthly: 'Monthly' }
 
-function getWeeklyPaycheck(settings: AppSettings): number {
-  const { paycheckAmount, payFrequency, monthlyIncome } = settings
-  if (paycheckAmount && paycheckAmount > 0) {
-    if (payFrequency === 'weekly') return paycheckAmount
-    if (payFrequency === 'biweekly' || payFrequency === 'semi-monthly') return paycheckAmount / 2
-    if (payFrequency === 'monthly') return paycheckAmount / 4
-    return paycheckAmount / 4
-  }
-  return (monthlyIncome || 0) / 4
+function subMonthlyAmount(sub: Subscription): number {
+  if (sub.frequency === 'monthly') return sub.amount
+  if (sub.frequency === 'yearly') return sub.amount / 12
+  return sub.amount * 4.33 // weekly → monthly
 }
 
 
@@ -108,7 +101,7 @@ function AddCategoryModal({ open, onClose, weeklyPaycheck, weeklyBills, totalAll
               </Select>
             </Field>
 
-            <Field label="Weekly amount">
+            <Field label="Amount per paycheck">
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#9CA3AF', pointerEvents: 'none' }}>{sym}</span>
                 <Input
@@ -147,9 +140,17 @@ export function Budgets() {
   const { state, dispatch } = useStore()
   const sym = state.settings.currencySymbol
 
-  const weeklyPaycheck = getWeeklyPaycheck(state.settings)
+  const payFrequency = state.settings.payFrequency || 'biweekly'
+  const ppm = PAYCHECKS_PER_MONTH[payFrequency] ?? 2
+  const freqLabel = FREQ_LABEL[payFrequency] ?? 'Per Paycheck'
+  // Same income fallback logic as Dashboard Paycheck Planner — single source of truth
+  const month = currentMonth()
+  const txIncome = getMonthIncome(state.transactions, month)
+  const income = state.settings.monthlyIncome || txIncome
+  const weeklyPaycheck = state.settings.paycheckAmount || (income > 0 ? income / ppm : 0)
   const activeSubs = state.subscriptions.filter(s => s.status === 'active')
-  const weeklyBills = activeSubs.reduce((s, sub) => s + weeklyFromSub(sub), 0)
+  const billsMonthly = activeSubs.reduce((s, sub) => s + subMonthlyAmount(sub), 0)
+  const weeklyBills = billsMonthly / ppm
 
   const weeklyBudgets = state.budgets.filter(b => b.month === WEEKLY_SENTINEL)
   const totalAllocated = weeklyBudgets.reduce((s, b) => s + b.monthlyLimit, 0)
@@ -226,8 +227,8 @@ export function Budgets() {
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>This Week's Budget</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Allocate your weekly paycheck across categories</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Allocate your {freqLabel.toLowerCase()} paycheck across categories</p>
         </div>
         <Card style={{ padding: '60px 24px', textAlign: 'center' }}>
           <p style={{ fontSize: 40, marginBottom: 16 }}>💰</p>
@@ -253,8 +254,8 @@ export function Budgets() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>This Week's Budget</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Click a slice to edit your weekly allocation</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
+          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Click a slice to edit your {freqLabel} allocation</p>
         </div>
         <Button onClick={() => setShowAddModal(true)}><Plus size={15} /> Add Category</Button>
       </div>
@@ -272,11 +273,11 @@ export function Budgets() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Weekly Paycheck', value: formatCurrency(weeklyPaycheck, sym), color: NAVY, sub: undefined },
-          { label: 'Weekly Bills', value: formatCurrency(weeklyBills, sym), color: BILLS_COLOR, sub: undefined },
+          { label: `${freqLabel} Paycheck`, value: formatCurrency(weeklyPaycheck, sym), color: NAVY, sub: undefined },
+          { label: `${freqLabel} Bills`, value: formatCurrency(weeklyBills, sym), color: BILLS_COLOR, sub: undefined },
           { label: 'Allocated', value: formatCurrency(totalAllocated, sym), color: '#4A6CF7', sub: undefined },
           {
-            label: 'Left to Budget This Week',
+            label: 'Remaining This Paycheck',
             value: formatCurrency(Math.abs(remaining), sym),
             color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY,
             sub: overAllocated ? '⚠ Over budget' : fullyAllocated ? '✓ Fully allocated' : undefined,
@@ -300,14 +301,14 @@ export function Budgets() {
               <p style={{ fontSize: 36, marginBottom: 12 }}>🥧</p>
               <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 6 }}>No categories yet</p>
               <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 20 }}>
-                Add budget categories to start splitting your {formatCurrency(weeklyPaycheck, sym)}/week paycheck.
+                Add budget categories to start splitting your {formatCurrency(weeklyPaycheck, sym)}/paycheck.
               </p>
               <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Category</Button>
             </div>
           ) : (
             <>
               <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center', marginBottom: 4 }}>
-                Weekly Paycheck — {formatCurrency(weeklyPaycheck, sym)}
+                {freqLabel} Paycheck — {formatCurrency(weeklyPaycheck, sym)}
               </p>
 
               {/* Chart with center label */}
@@ -353,7 +354,7 @@ export function Budgets() {
                               {d.icon ? `${d.icon} ` : ''}{d.name}
                             </p>
                             <p style={{ color: d.color, fontWeight: 600, marginBottom: 2 }}>
-                              {formatCurrency(d.value, sym)}/week
+                              {formatCurrency(d.value, sym)}/paycheck
                             </p>
                             <p style={{ color: '#8A94A6' }}>{pct}% of paycheck</p>
                           </div>
@@ -382,7 +383,7 @@ export function Budgets() {
                       </>
                     ) : (
                       <>
-                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>per week</p>
+                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>per paycheck</p>
                         <p style={{ fontSize: 22, fontWeight: 700, color: NAVY }}>
                           {formatCurrency(weeklyPaycheck, sym)}
                         </p>
@@ -441,7 +442,7 @@ export function Budgets() {
             /* Default: remaining summary */
             <Card style={{ padding: '24px' }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
-                Left to budget from this week's paycheck
+                Left to budget from this paycheck
               </p>
               <p style={{
                 fontSize: 38, fontWeight: 700, letterSpacing: '-1.5px', marginBottom: 4,
@@ -454,7 +455,7 @@ export function Budgets() {
                   ? `Over-allocated by ${formatCurrency(-remaining, sym)}`
                   : fullyAllocated
                     ? 'Your full paycheck is allocated.'
-                    : `from your ${formatCurrency(weeklyPaycheck, sym)} weekly paycheck`}
+                    : `from your ${formatCurrency(weeklyPaycheck, sym)} ${freqLabel.toLowerCase()} paycheck`}
               </p>
 
               {overAllocated && (
@@ -497,7 +498,7 @@ export function Budgets() {
 
               {slices.length > 0 && !fullyAllocated && (
                 <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 16 }}>
-                  Click a slice to adjust its weekly allocation.
+                  Click a slice to adjust its allocation.
                 </p>
               )}
             </Card>
@@ -524,7 +525,7 @@ export function Budgets() {
                 {formatCurrency(weeklyBills, sym)}
               </p>
               <p style={{ fontSize: 12, color: '#8A94A6', marginBottom: 20 }}>
-                per week · {weeklyPaycheck > 0 ? ((weeklyBills / weeklyPaycheck) * 100).toFixed(1) : 0}% of paycheck
+                per paycheck · {weeklyPaycheck > 0 ? ((weeklyBills / weeklyPaycheck) * 100).toFixed(1) : 0}% of paycheck
               </p>
 
               <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
@@ -539,7 +540,7 @@ export function Budgets() {
                         <span>{cat?.icon}</span> {sub.name}
                       </span>
                       <span style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>
-                        {formatCurrency(weeklyFromSub(sub), sym)}/wk
+                        {formatCurrency(subMonthlyAmount(sub) / ppm, sym)}/paycheck
                       </span>
                     </div>
                   )
@@ -564,7 +565,7 @@ export function Budgets() {
                 {formatCurrency(remaining, sym)}
               </p>
               <p style={{ fontSize: 13, color: '#8A94A6', lineHeight: 1.6 }}>
-                This portion of your weekly paycheck hasn't been assigned to a category. Add categories to budget it out.
+                This portion of your paycheck hasn't been assigned to a category. Add categories to budget it out.
               </p>
               <Button style={{ marginTop: 20, width: '100%' }} onClick={() => { setSelectedId(null); setShowAddModal(true) }}>
                 <Plus size={14} /> Add Category
