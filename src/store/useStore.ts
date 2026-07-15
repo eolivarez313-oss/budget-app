@@ -25,6 +25,8 @@ type Action =
   | { type: 'UPDATE_SUBSCRIPTION'; payload: Subscription }
   | { type: 'DELETE_SUBSCRIPTION'; payload: string }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
+  | { type: 'SAVE_MERCHANT_RULE'; payload: { key: string; categoryId: string } }
+  | { type: 'DELETE_MERCHANT_RULE'; payload: string }
   | { type: 'RESET' }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -50,6 +52,8 @@ function reducer(state: AppState, action: Action): AppState {
     case 'UPDATE_SUBSCRIPTION': return { ...state, subscriptions: state.subscriptions.map(s => s.id === action.payload.id ? action.payload : s) }
     case 'DELETE_SUBSCRIPTION': return { ...state, subscriptions: state.subscriptions.filter(s => s.id !== action.payload) }
     case 'UPDATE_SETTINGS': return { ...state, settings: { ...state.settings, ...action.payload } }
+    case 'SAVE_MERCHANT_RULE': return { ...state, merchantRules: { ...state.merchantRules, [action.payload.key]: action.payload.categoryId } }
+    case 'DELETE_MERCHANT_RULE': { const rules = { ...state.merchantRules }; delete rules[action.payload]; return { ...state, merchantRules: rules } }
     case 'RESET': return getInitialData()
     default: return state
   }
@@ -82,6 +86,18 @@ function dedup<T extends { id: string }>(arr: T[]): T[] {
 }
 
 function dedupState(s: AppState): AppState {
+  // Migrate any rules previously stored in the old localStorage key
+  let merchantRules: Record<string, string> = s.merchantRules || {}
+  try {
+    const old = JSON.parse(localStorage.getItem('budget_categorize_v2') || '{}') as Record<string, { categoryId: string }>
+    for (const [k, v] of Object.entries(old)) {
+      const base = k.replace(/\|.*$/, '') // strip |direction suffix
+      if (base && v.categoryId && !merchantRules[base]) {
+        merchantRules = { ...merchantRules, [base]: v.categoryId }
+      }
+    }
+    if (Object.keys(old).length > 0) localStorage.removeItem('budget_categorize_v2')
+  } catch {}
   return {
     ...s,
     accounts: dedup(s.accounts),
@@ -91,6 +107,7 @@ function dedupState(s: AppState): AppState {
     goals: dedup(s.goals),
     netWorthHistory: dedup(s.netWorthHistory),
     subscriptions: dedup(s.subscriptions),
+    merchantRules,
   }
 }
 
@@ -106,6 +123,7 @@ export const EMPTY: AppState = {
   accounts: [], transactions: [], categories: [], budgets: [],
   goals: [], netWorthHistory: [], subscriptions: [],
   settings: { currency: 'USD', currencySymbol: '$', theme: 'dark', name: 'My Budget', dashboardWidgets: [] },
+  merchantRules: {},
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

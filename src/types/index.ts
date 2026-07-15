@@ -101,4 +101,5 @@ export interface AppState {
   netWorthHistory: NetWorthEntry[]
   subscriptions: Subscription[]
   settings: AppSettings
+  merchantRules: Record<string, string> // merchantKey → categoryId
 }

@@ -6,7 +6,7 @@ import { Button } from './ui/Button'
 import { formatCurrency } from '../utils/formatters'
 import { Transaction } from '../types'
 import { uuid } from '../utils/uuid'
-import { suggestCategoryId, saveCorrection, detectDirection, merchantKey, TxDirection } from '../utils/categorize'
+import { suggestCategoryId, detectDirection, merchantKey, TxDirection } from '../utils/categorize'
 
 const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
@@ -252,6 +252,7 @@ function toReviewRows(
   extracted: RawTx[],
   existingTxs: Transaction[],
   categories: import('../types').Category[],
+  merchantRules: Record<string, string>,
 ): ReviewRow[] {
   return extracted.map(tx => {
     const matched = findPotentialDuplicate(tx, existingTxs)
@@ -261,7 +262,7 @@ function toReviewRows(
       date: tx.date,
       description: tx.description,
       amount: tx.amount.toFixed(2),
-      categoryId: suggestCategoryId(tx.description, categories, dir),
+      categoryId: suggestCategoryId(tx.description, categories, dir, merchantRules),
       include: true, // always include by default — user decides what to skip
       isDuplicate: !!matched,
       direction: dir,
@@ -335,9 +336,9 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
   function updateRow(localId: string, patch: Partial<ReviewRow>) {
     setRows(rs => rs.map(r => {
       if (r.localId !== localId) return r
-      // When user manually picks a category, persist the correction so future imports learn from it
+      // When user manually picks a category, save as a permanent merchant rule
       if (patch.categoryId && patch.categoryId !== r.categoryId) {
-        saveCorrection(r.description, patch.categoryId, r.direction)
+        dispatch({ type: 'SAVE_MERCHANT_RULE', payload: { key: merchantKey(r.description), categoryId: patch.categoryId } })
       }
       return { ...r, ...patch }
     }))
@@ -370,7 +371,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
         setExtractErr("Couldn't find any transactions. Make sure each line has a dollar amount (e.g. $54.32). Check the format tips above.")
         return
       }
-      setRows(toReviewRows(extracted, state.transactions, state.categories))
+      setRows(toReviewRows(extracted, state.transactions, state.categories, state.merchantRules || {}))
       setStep('summary')
     }, 0)
   }
@@ -388,7 +389,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
         setExtractErr('No transactions found. Try a clearer, higher-contrast screenshot.')
         return
       }
-      setRows(toReviewRows(extracted, state.transactions, state.categories))
+      setRows(toReviewRows(extracted, state.transactions, state.categories, state.merchantRules || {}))
       setStep('summary')
     } catch (err: any) {
       setStep('input')

@@ -148,5 +148,6 @@ export function getInitialData(): AppState {
       name: 'My Budget',
       dashboardWidgets: ['stats', 'health', 'budgets', 'insights', 'cashflow', 'spending', 'upcoming', 'recent'],
     },
+    merchantRules: {},
   }
 }

@@ -269,6 +269,38 @@ export function Settings() {
         </div>
       </Card>
 
+      {/* Merchant Rules */}
+      {Object.keys(state.merchantRules || {}).length > 0 && (
+        <Card style={{ padding: '18px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Learned Merchant Rules</p>
+              <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>Manually corrected category assignments — applied automatically to future transactions</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {Object.entries(state.merchantRules || {}).map(([key, categoryId]) => {
+              const cat = state.categories.find(c => c.id === categoryId)
+              return (
+                <div key={key}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: 8, transition: 'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F5F5'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, color: NAVY, fontWeight: 500, textTransform: 'capitalize' }}>{key}</span>
+                    <span style={{ fontSize: 11, color: '#8A94A6' }}>→</span>
+                    <span style={{ fontSize: 12, color: cat ? NAVY : '#dc2626' }}>{cat ? `${cat.icon} ${cat.name}` : 'Deleted category'}</span>
+                  </div>
+                  <IconButton size="sm" variant="danger" onClick={() => dispatch({ type: 'DELETE_MERCHANT_RULE', payload: key })}>
+                    <Trash2 size={12} />
+                  </IconButton>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
+
       {showCatModal && <CategoryModal open onClose={() => setShowCatModal(false)} />}
       {editingCat && <CategoryModal open onClose={() => setEditingCat(null)} initial={editingCat} />}
       <ConfirmModal

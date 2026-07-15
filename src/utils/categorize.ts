@@ -111,41 +111,13 @@ const MERCHANT_KEYWORD_PATTERNS: Array<{ pattern: RegExp; names: string[] }> = [
   { pattern: /book|kindle|course|udemy|coursera|tuition|education|school supply/i, names: ['education', 'books', 'learning', 'school'] },
 ]
 
-// ─── Learning map ─────────────────────────────────────────────────────────────
-// Persists user-confirmed corrections. Key is `merchantKey|direction` so that
-// a "Zelle Credit From John" and a "Zelle Debit To John" can learn independently.
+// ─── Merchant rule lookup ─────────────────────────────────────────────────────
+// Rules are stored in AppState.merchantRules (Record<merchantKey, categoryId>).
+// This replaces the old localStorage-based learning map.
 
-const LEARN_KEY = 'budget_categorize_v2'
-
-interface Learned { categoryId: string; count: number }
-
-function loadMap(): Record<string, Learned> {
-  try { return JSON.parse(localStorage.getItem(LEARN_KEY) || '{}') } catch { return {} }
-}
-
-function learnKey(description: string, direction: TxDirection): string {
-  return merchantKey(description) + '|' + direction
-}
-
-export function saveCorrection(description: string, categoryId: string, direction: TxDirection = 'unknown') {
-  const map = loadMap()
-  const k = learnKey(description, direction)
-  map[k] = { categoryId, count: (map[k]?.count || 0) + 1 }
-  // Also update the direction-agnostic fallback if this correction is higher-confidence
-  const gk = merchantKey(description) + '|any'
-  if (!map[gk] || map[k].count >= (map[gk]?.count || 0)) {
-    map[gk] = map[k]
-  }
-  try { localStorage.setItem(LEARN_KEY, JSON.stringify(map)) } catch {}
-}
-
-function lookupLearned(description: string, direction: TxDirection): string | null {
-  const map = loadMap()
-  const specific = map[learnKey(description, direction)]
-  if (specific) return specific.categoryId
-  const general = map[merchantKey(description) + '|any']
-  if (general) return general.categoryId
-  return null
+export function lookupMerchantRule(description: string, rules: Record<string, string>): string | null {
+  const key = merchantKey(description)
+  return rules[key] || null
 }
 
 // ─── Main categorization function ─────────────────────────────────────────────
@@ -163,13 +135,16 @@ export function suggestCategoryId(
   description: string,
   categories: Category[],
   direction?: TxDirection,
+  merchantRules?: Record<string, string>,
 ): string {
   const dir = direction ?? detectDirection(description)
   const merchant = extractMerchant(description)
 
-  // 1. Learned corrections (highest priority)
-  const learned = lookupLearned(description, dir)
-  if (learned && categories.find(c => c.id === learned)) return learned
+  // 1. Merchant rules — user-confirmed corrections always win
+  if (merchantRules) {
+    const ruleId = lookupMerchantRule(description, merchantRules)
+    if (ruleId && categories.find(c => c.id === ruleId)) return ruleId
+  }
 
   // 2. Direction filter
   const candidates = categories.filter(cat => {

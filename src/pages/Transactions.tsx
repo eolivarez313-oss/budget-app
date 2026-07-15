@@ -13,7 +13,7 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { formatCurrency, formatDate } from '../utils/formatters'
 import { Transaction, TransactionType } from '../types'
 import { uuid } from '../utils/uuid'
-import { saveCorrection, detectDirection } from '../utils/categorize'
+import { merchantKey, extractMerchant } from '../utils/categorize'
 
 const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
@@ -34,6 +34,7 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
     recurringFrequency: initial?.recurringFrequency || 'monthly' as 'weekly'|'biweekly'|'monthly'|'yearly',
   })
   const [err, setErr] = useState('')
+  const [retroPrompt, setRetroPrompt] = useState<{ merchant: string; txIds: string[]; categoryId: string } | null>(null)
 
   const filteredCats = state.categories.filter(c => c.type === form.type)
 
@@ -56,13 +57,35 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
       isRecurring: form.isRecurring,
       recurringFrequency: form.isRecurring ? form.recurringFrequency : undefined,
     }
-    // When the user edits an existing transaction and changes its category, persist
-    // that as a learned correction so future imports auto-categorize correctly.
-    if (initial && form.categoryId !== initial.categoryId && form.categoryId) {
-      const dir = detectDirection(tx.description)
-      saveCorrection(tx.description, form.categoryId, dir)
-    }
     dispatch({ type: initial ? 'UPDATE_TRANSACTION' : 'ADD_TRANSACTION', payload: tx })
+
+    // When the category changed on an existing transaction, save as a permanent merchant rule
+    if (initial && form.categoryId !== initial.categoryId && form.categoryId) {
+      const key = merchantKey(tx.description)
+      dispatch({ type: 'SAVE_MERCHANT_RULE', payload: { key, categoryId: form.categoryId } })
+
+      // Find other transactions from the same merchant that still have the old category
+      const merchant = extractMerchant(tx.description)
+      const others = state.transactions.filter(t =>
+        t.id !== tx.id &&
+        merchantKey(t.description) === key &&
+        t.categoryId !== form.categoryId
+      )
+      if (others.length > 0) {
+        setRetroPrompt({ merchant, txIds: others.map(t => t.id), categoryId: form.categoryId })
+        return // keep modal open to show the retroactive prompt
+      }
+    }
+    onClose()
+  }
+
+  function applyRetroactively() {
+    if (!retroPrompt) return
+    for (const id of retroPrompt.txIds) {
+      const t = state.transactions.find(x => x.id === id)
+      if (t) dispatch({ type: 'UPDATE_TRANSACTION', payload: { ...t, categoryId: retroPrompt.categoryId } })
+    }
+    setRetroPrompt(null)
     onClose()
   }
 
@@ -119,10 +142,24 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
             </Select>
           </Field>
         )}
-        <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-          <Button onClick={save} style={{ flex: 1 }}>Save Transaction</Button>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        </div>
+        {retroPrompt && (
+          <div style={{ background: 'rgba(6,198,138,0.08)', border: '1px solid rgba(6,198,138,0.3)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>
+              Apply to {retroPrompt.txIds.length} other transaction{retroPrompt.txIds.length !== 1 ? 's' : ''} from "{retroPrompt.merchant}"?
+            </p>
+            <p style={{ fontSize: 12, color: '#8A94A6' }}>Other past transactions from this merchant still have a different category. Fix them all now?</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button size="sm" onClick={applyRetroactively} style={{ flex: 1 }}>Yes, fix all</Button>
+              <Button size="sm" variant="secondary" onClick={() => { setRetroPrompt(null); onClose() }} style={{ flex: 1 }}>No, just this one</Button>
+            </div>
+          </div>
+        )}
+        {!retroPrompt && (
+          <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+            <Button onClick={save} style={{ flex: 1 }}>Save Transaction</Button>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          </div>
+        )}
       </div>
     </Modal>
   )
