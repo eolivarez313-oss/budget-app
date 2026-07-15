@@ -1,4 +1,5 @@
 import { ReactNode, CSSProperties } from 'react'
+import { motion } from 'framer-motion'
 
 interface CardProps {
   children: ReactNode
@@ -9,27 +10,38 @@ interface CardProps {
 }
 
 export function Card({ children, className = '', style, onClick, hover }: CardProps) {
+  const base: CSSProperties = {
+    background: '#FAFAFA',
+    border: '1px solid #E4E4E4',
+    borderRadius: 14,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    cursor: hover ? 'pointer' : undefined,
+    ...style,
+  }
+
+  if (hover) {
+    return (
+      <motion.div
+        className={className}
+        onClick={onClick}
+        style={base}
+        whileHover={{
+          boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+          y: -2,
+          borderColor: '#D0D0D0',
+        } as any}
+        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+      >
+        {children}
+      </motion.div>
+    )
+  }
+
   return (
     <div
       onClick={onClick}
       className={className}
-      style={{
-        background: '#FAFAFA',
-        border: '1px solid #E4E4E4',
-        borderRadius: 14,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        transition: hover ? 'box-shadow 0.15s, border-color 0.15s' : undefined,
-        cursor: hover ? 'pointer' : undefined,
-        ...style,
-      }}
-      onMouseEnter={hover ? e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.09)'
-        ;(e.currentTarget as HTMLElement).style.borderColor = '#D0D0D0'
-      } : undefined}
-      onMouseLeave={hover ? e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'
-        ;(e.currentTarget as HTMLElement).style.borderColor = '#E4E4E4'
-      } : undefined}
+      style={base}
     >
       {children}
     </div>

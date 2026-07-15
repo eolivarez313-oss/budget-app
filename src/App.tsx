@@ -35,13 +35,27 @@ function AppRoutes() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <DollarSign size={28} className="text-white" />
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100vh', background: '#1A1F36', flexDirection: 'column', gap: 16,
+      }}>
+        <div style={{ position: 'relative', width: 56, height: 56 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: 'rgba(6,198,138,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <DollarSign size={26} color="#06C68A" />
           </div>
-          <p className="text-slate-400 text-sm">Loading your finances...</p>
+          <div style={{
+            position: 'absolute', inset: -4, borderRadius: 20,
+            border: '2px solid transparent',
+            borderTopColor: '#06C68A',
+            animation: 'spin 0.9s linear infinite',
+          }} />
         </div>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Loading your finances…</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }

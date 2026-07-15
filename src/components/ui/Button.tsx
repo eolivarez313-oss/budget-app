@@ -1,4 +1,4 @@
-﻿import { ReactNode, ButtonHTMLAttributes } from 'react'
+import { ReactNode, ButtonHTMLAttributes } from 'react'
 
 const GREEN = '#06C68A'
 
@@ -8,12 +8,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
 }
 
-export function Button({ variant = 'primary', size = 'md', children, style, ...props }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', children, style, disabled, ...props }: ButtonProps) {
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    gap: 6, fontWeight: 500, borderRadius: 8, cursor: 'pointer',
+    gap: 6, fontWeight: 500, borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer',
     border: '1px solid transparent', fontFamily: 'inherit',
-    transition: 'all 0.15s', whiteSpace: 'nowrap',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.15s, transform 0.1s, opacity 0.15s',
   }
 
   const variants: Record<string, React.CSSProperties> = {
@@ -30,17 +31,24 @@ export function Button({ variant = 'primary', size = 'md', children, style, ...p
   }
 
   const hovers: Record<string, string> = {
-    primary: '#04b07a', secondary: '#f9fafb', danger: '#fee2e2', ghost: '#f5f6fa',
+    primary: '#04b07a', secondary: '#e8e8e8', danger: '#fee2e2', ghost: '#f5f6fa',
   }
 
-  const disabledStyle: React.CSSProperties = props.disabled ? { opacity: 0.45, cursor: 'not-allowed' } : {}
+  const disabledStyle: React.CSSProperties = disabled ? { opacity: 0.45 } : {}
 
   return (
     <button
       style={{ ...base, ...variants[variant], ...sizes[size], ...disabledStyle, ...style }}
+      disabled={disabled}
       {...props}
-      onMouseEnter={e => { if (!props.disabled) (e.currentTarget as HTMLElement).style.background = hovers[variant] }}
-      onMouseLeave={e => { if (!props.disabled) (e.currentTarget as HTMLElement).style.background = variants[variant].background as string }}
+      onMouseEnter={e => {
+        if (!disabled) (e.currentTarget as HTMLElement).style.background = hovers[variant]
+        props.onMouseEnter?.(e as any)
+      }}
+      onMouseLeave={e => {
+        if (!disabled) (e.currentTarget as HTMLElement).style.background = variants[variant].background as string
+        props.onMouseLeave?.(e as any)
+      }}
     >
       {children}
     </button>

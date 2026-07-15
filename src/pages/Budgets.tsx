@@ -1,5 +1,7 @@
+// v2
 import { useState } from 'react'
 import { Plus, X, AlertTriangle, Receipt } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useStore } from '../store/useStore'
@@ -425,6 +427,15 @@ export function Budgets() {
 
         {/* Details / edit panel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={selectedId ?? '__none'}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
 
           {!selectedSlice ? (
             /* Default: remaining summary */
@@ -619,6 +630,8 @@ export function Budgets() {
               </button>
             </Card>
           )}
+          </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 

@@ -1,5 +1,7 @@
+// v2
 import { useState, useRef, useEffect } from 'react'
 import { MessageCircle, X, Send, Minimize2, Bot } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useStore } from '../store/useStore'
 import { formatCurrency } from '../utils/formatters'
 import {
@@ -192,34 +194,47 @@ export function AIChatbot() {
   return (
     <>
       {/* Floating bubble */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          style={{
-            position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
-            width: 52, height: 52, borderRadius: '50%',
-            background: GREEN, border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(6,198,138,0.4)',
-            transition: 'transform 0.15s, box-shadow 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.08)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 28px rgba(6,198,138,0.55)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(6,198,138,0.4)' }}
-          title="AI Finance Assistant"
-        >
-          <MessageCircle size={22} color="#fff" />
-        </button>
-      )}
+      <AnimatePresence>
+        {!open && (
+          <motion.button
+            key="bubble"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            whileHover={{ scale: 1.1, boxShadow: '0 8px 32px rgba(6,198,138,0.55)' }}
+            whileTap={{ scale: 0.93 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+            onClick={() => setOpen(true)}
+            title="AI Finance Assistant"
+            style={{
+              position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
+              width: 52, height: 52, borderRadius: '50%',
+              background: GREEN, border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 20px rgba(6,198,138,0.4)',
+            }}
+          >
+            <MessageCircle size={22} color="#fff" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Chat panel */}
-      {open && (
-        <div style={{
-          position: 'fixed', bottom: 20, right: 20, zIndex: 1000,
-          width: 380, height: 560, borderRadius: 16,
-          background: '#FAFAFA', border: '1px solid #E4E4E4',
-          boxShadow: '0 16px 60px rgba(27,32,48,0.18)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
+      <AnimatePresence>
+        {open && (
+        <motion.div
+          key="panel"
+          initial={{ opacity: 0, scale: 0.92, y: 20, transformOrigin: 'bottom right' }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 12 }}
+          transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            position: 'fixed', bottom: 20, right: 20, zIndex: 1000,
+            width: 380, height: 560, borderRadius: 16,
+            background: '#FAFAFA', border: '1px solid #E4E4E4',
+            boxShadow: '0 16px 60px rgba(27,32,48,0.18)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
           {/* Header */}
           <div style={{
             background: NAVY, padding: '14px 16px',
@@ -307,7 +322,13 @@ export function AIChatbot() {
                 )}
 
                 {messages.map((m, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}
+                  >
                     {m.role === 'assistant' && (
                       <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(6,198,138,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 8, marginTop: 2 }}>
                         <Bot size={13} color={GREEN} />
@@ -322,7 +343,7 @@ export function AIChatbot() {
                     }}>
                       {m.content}
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
 
                 {loading && (
@@ -382,8 +403,9 @@ export function AIChatbot() {
               </div>
             </>
           )}
-        </div>
-      )}
+        </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{`
         @keyframes chatDot {

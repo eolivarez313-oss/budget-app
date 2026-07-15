@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -35,25 +35,84 @@ input, select, textarea {
 ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
 
+/* ── Standard easing values ──────────────────────────────────── */
+:root {
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:   cubic-bezier(0.4, 0, 1, 1);
+  --ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  150ms;
+  --dur-mid:   220ms;
+  --dur-slow:  300ms;
+}
+
+/* ── Page entrance (used by Layout wrapper) ──────────────────── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.fade-in { animation: fadeUp 0.25s ease forwards; }
+.fade-in { animation: fadeUp 0.22s var(--ease-out) both; }
 
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
-}
+/* ── Modal backdrop + panel (CSS fallback; Framer handles the real ones) */
 @keyframes backdropIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.modal-backdrop { animation: backdropIn 0.18s ease forwards; }
-.modal-panel    { animation: modalIn 0.22s cubic-bezier(0.16,1,0.3,1) forwards; }
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-backdrop { animation: backdropIn 0.18s ease both; }
+.modal-panel    { animation: modalIn 0.24s var(--ease-out) both; }
 
-/* Sidebar nav hover for inactive items */
+/* ── Interactive press feedback ──────────────────────────────── */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+button {
+  transition: transform 0.1s var(--ease-out), background 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+/* ── Transaction row hover ───────────────────────────────────── */
+.tx-row {
+  transition: background 0.12s;
+}
+.tx-row:hover {
+  background: rgba(6,198,138,0.04) !important;
+}
+
+/* ── Sidebar nav ─────────────────────────────────────────────── */
+.nav-item {
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
 .nav-item:not(.active):hover {
   background: rgba(255,255,255,0.07) !important;
   color: rgba(255,255,255,0.8) !important;
+}
+.nav-item.active {
+  transform: translateX(2px);
+}
+
+/* ── Pie chart slice hover (recharts) ────────────────────────── */
+.recharts-sector {
+  transition: opacity 0.18s, transform 0.18s;
+  transform-origin: center;
+}
+
+/* ── Skeleton loader ─────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Smooth height collapse/expand ──────────────────────────── */
+.collapsible {
+  overflow: hidden;
+  transition: height var(--dur-mid) var(--ease-out),
+              opacity var(--dur-mid) var(--ease-out);
 }

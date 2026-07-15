@@ -1,5 +1,7 @@
-﻿import { useState } from 'react'
+﻿// v2
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, Search, Trash2, Edit2, Filter, Upload, AlertTriangle } from 'lucide-react'
 import { ImportModal } from '../components/ImportModal'
 import { useStore } from '../store/useStore'
@@ -238,25 +240,43 @@ export function Transactions() {
             <Filter size={14} /> Filters {showFilters ? '▲' : '▼'}
           </Button>
         </div>
-        {showFilters && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 12 }}>
-            <Select value={filterType} onChange={e => setFilterType(e.target.value)}>
-              <option value="">All types</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-              <option value="transfer">Transfer</option>
-            </Select>
-            <Select value={filterCat} onChange={e => setFilterCat(e.target.value)}>
-              <option value="">All categories</option>
-              {state.categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-            </Select>
-            <Input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <Select value={filterType} onChange={e => setFilterType(e.target.value)}>
+                  <option value="">All types</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                  <option value="transfer">Transfer</option>
+                </Select>
+                <Select value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+                  <option value="">All categories</option>
+                  {state.categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </Select>
+                <Input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
 
       {/* Bulk delete panel */}
+      <AnimatePresence initial={false}>
       {showBulkDelete && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          style={{ overflow: 'hidden' }}
+        >
         <Card style={{ padding: '18px 20px', border: '1px solid #fecaca', background: '#fff8f8' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <Trash2 size={15} style={{ color: '#ef4444' }} />
@@ -290,7 +310,9 @@ export function Transactions() {
             </div>
           )}
         </Card>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Bulk delete confirmation modal */}
       {confirmingBulk && createPortal(
@@ -342,14 +364,11 @@ export function Transactions() {
           const cat = state.categories.find(c => c.id === t.categoryId)
           const acc = state.accounts.find(a => a.id === t.accountId)
           return (
-            <div key={t.id} style={{
+            <div key={t.id} className="tx-row" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 20px',
               borderBottom: i < filtered.length - 1 ? '1px solid #EBEBEB' : 'none',
-            }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F5F5'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            >
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
                   {cat?.icon || '💳'}
