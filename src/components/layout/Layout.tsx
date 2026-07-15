@@ -1,5 +1,6 @@
 ﻿import { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
+import { AIChatbot } from '../AIChatbot'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -8,6 +9,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '32px 40px' }}>
         {children}
       </main>
+      <AIChatbot />
     </div>
   )
 }
