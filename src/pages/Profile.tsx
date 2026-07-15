@@ -17,10 +17,12 @@ function Initials({ name, size = 72 }: { name: string; size?: number }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg, var(--accent), #04b07a)',
+      background: 'var(--accent)',
+      border: '2px solid var(--accent-foreground)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.36, fontWeight: 700, color: '#fff',
+      fontSize: size * 0.36, fontWeight: 700, color: 'var(--accent-foreground)',
       letterSpacing: '-1px', flexShrink: 0,
+      fontFamily: '"Fraunces", ui-serif, Georgia, serif',
     }}>
       {initials}
     </div>
@@ -59,7 +61,7 @@ function Row({ icon: Icon, label, value, action, onAction, danger }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 8,
-          background: danger ? 'var(--danger-dim)' : '#EDE8DF',
+          background: danger ? 'var(--danger-dim)' : 'var(--secondary)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,
         }}>
@@ -106,7 +108,7 @@ export function Profile() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {profile.name
             ? <Initials name={profile.name} size={72} />
-            : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#DDD6CA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            : <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={28} color="var(--text-muted)" />
               </div>
           }
@@ -125,7 +127,7 @@ export function Profile() {
               </form>
             ) : (
               <>
-                <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>
+                <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
                   {profile.name || 'No name set'}
                 </p>
                 <button
@@ -156,9 +158,9 @@ export function Profile() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: 8, background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : '#EDE8DF',
+                width: 32, height: 32, borderRadius: 8, background: ws.id === activeWorkspaceId ? 'var(--accent)' : 'var(--secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 14, fontWeight: 700, color: ws.id === activeWorkspaceId ? ACCENT : 'var(--text-muted)',
+                fontSize: 14, fontWeight: 700, color: ws.id === activeWorkspaceId ? 'var(--accent-foreground)' : 'var(--text-muted)',
               }}>
                 {ws.name[0].toUpperCase()}
               </div>
@@ -166,7 +168,7 @@ export function Profile() {
                 <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
                   {ws.name}
                   {ws.id === activeWorkspaceId && (
-                    <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: ACCENT, background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: 4 }}>
+                    <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: 'var(--accent-foreground)', background: 'var(--accent)', padding: '2px 6px', borderRadius: 9999 }}>
                       ACTIVE
                     </span>
                   )}
@@ -208,17 +210,17 @@ export function Profile() {
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '10px 8px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                      background: isMe ? 'var(--accent-dim)' : 'transparent',
+                      background: isMe ? 'var(--accent)' : 'transparent',
                       marginBottom: i < hw.contributors.length - 1 ? 2 : 0,
                       transition: 'background 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
+                    onMouseEnter={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = 'var(--muted)' }}
                     onMouseLeave={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                   >
-                    <span style={{ fontSize: 13, fontWeight: isMe ? 600 : 400, color: isMe ? ACCENT : 'var(--text)' }}>
+                    <span style={{ fontSize: 13, fontWeight: isMe ? 600 : 400, color: isMe ? 'var(--accent-foreground)' : 'var(--text)' }}>
                       {c.name}
                     </span>
-                    {isMe && <Check size={14} color={ACCENT} />}
+                    {isMe && <Check size={14} color="var(--accent-foreground)" />}
                   </button>
                 )
               })}

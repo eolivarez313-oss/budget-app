@@ -11,40 +11,82 @@ html, body {
   width: 100%;
 }
 
+/* ── Google Fonts ────────────────────────────────────────────────────────────
+   Fraunces = display/serif for hero numbers & headlines
+   Inter    = body, UI chrome, labels
+   ─────────────────────────────────────────────────────────────────────────── */
+
 /* ── Design tokens ───────────────────────────────────────────────────────────
-   Light, soft palette. All components use these vars.
+   Warm off-white / soft cream palette with deep forest-green accent.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces — warm cream/linen, soft and easy on the eyes */
-  --bg:            #F2EDE6;   /* page background — warm cream linen */
-  --sidebar:       #F8F4EF;   /* sidebar — lighter warm off-white */
-  --surface:       #FDFAF7;   /* cards — soft warm white, not stark */
-  --surface-hover: #F8F4EF;   /* card hover */
-  --elevated:      #FDFAF7;   /* modals */
-  --border:        rgba(0,0,0,0.07);  /* hairline, warm-tinted */
+  --radius: 0.875rem;
 
-  /* Accent & status */
-  --accent:        #0AB87A;
-  --accent-dim:    rgba(10,184,122,0.10);
-  --accent-hover:  #09a46d;
-  --danger:        #DC3545;
-  --danger-dim:    rgba(220,53,69,0.09);
-  --warning:       #D97706;
-  --warning-dim:   rgba(217,119,6,0.09);
-  --info:          #2563EB;
-  --info-dim:      rgba(37,99,235,0.09);
+  /* Surfaces — warm cream */
+  --background:           oklch(0.972 0.008 85);
+  --surface:              oklch(0.985 0.006 85);
+  --card:                 oklch(0.988 0.005 85);
+  --card-foreground:      oklch(0.24 0.015 60);
+  --popover:              oklch(0.99 0.004 85);
+  --popover-foreground:   oklch(0.24 0.015 60);
 
-  /* Typography — dark gray, not pure black */
-  --text:          #374151;   /* body text — Tailwind gray-700, readable without harshness */
-  --text-muted:    #6B7280;   /* labels — Tailwind gray-500 */
-  --text-dim:      #D1D5DB;   /* decorative hairlines — Tailwind gray-300 */
-  --text-strong:   #111827;   /* hero numbers only — Tailwind gray-900 */
+  /* Deep forest accent — primary CTA */
+  --primary:              oklch(0.42 0.075 155);
+  --primary-foreground:   oklch(0.98 0.008 85);
+
+  --secondary:            oklch(0.94 0.008 80);
+  --secondary-foreground: oklch(0.28 0.015 60);
+
+  --muted:                oklch(0.945 0.008 80);
+  --muted-foreground:     oklch(0.52 0.012 65);
+
+  /* Soft green tint — accent backgrounds */
+  --accent:               oklch(0.93 0.02 155);
+  --accent-foreground:    oklch(0.32 0.05 155);
+
+  /* Status */
+  --destructive:          oklch(0.56 0.15 25);
+  --destructive-foreground: oklch(0.98 0.008 85);
+  --success:              oklch(0.52 0.09 150);
+  --warning:              oklch(0.7 0.12 60);
+
+  /* Borders & inputs */
+  --border:               oklch(0.915 0.01 75);
+  --border-strong:        oklch(0.86 0.012 75);
+  --input:                oklch(0.915 0.01 75);
+  --ring:                 oklch(0.42 0.075 155);
+
+  /* ── Aliases for existing component var names ────────────────────────────
+     Components use var(--accent) as the primary action color,
+     var(--accent-dim) as the soft tint, etc. Map to new tokens.          */
+  --bg:            var(--background);
+  --sidebar:       oklch(0.968 0.007 85);
+  --surface-hover: var(--secondary);
+  --elevated:      var(--popover);
+
+  /* var(--accent) in old code = primary green action */
+  /* reassigned above — no alias needed, --accent now = soft tint */
+  /* var(--accent-dim) = soft tint (what --accent now is) */
+  --accent-dim:    oklch(0.93 0.02 155 / 0.55);
+  --accent-hover:  oklch(0.36 0.075 155);
+
+  --danger:        var(--destructive);
+  --danger-dim:    oklch(0.56 0.15 25 / 0.09);
+
+  --warning-dim:   oklch(0.7 0.12 60 / 0.10);
+  --info:          oklch(0.55 0.12 255);
+  --info-dim:      oklch(0.55 0.12 255 / 0.09);
+
+  --text:          var(--card-foreground);
+  --text-muted:    var(--muted-foreground);
+  --text-dim:      oklch(0.72 0.008 70);
+  --text-strong:   oklch(0.18 0.015 60);
 
   /* Spacing scale */
   --r-sm:  8px;
   --r-md:  12px;
   --r-lg:  16px;
-  --r-xl:  20px;
+  --r-xl:  var(--radius);
 
   /* Animation */
   --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
@@ -53,16 +95,35 @@ html, body {
 }
 
 body {
-  background: var(--bg);
+  background: var(--background);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* tabular numerals globally — affects numeric glyphs only */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Card surface — apply everywhere a card/panel appears ────────────────── */
+.card-surface {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow:
+    0 1px 0   rgba(30,25,20,0.02),
+    0 1px 2px rgba(30,25,20,0.04),
+    0 8px 24px -12px rgba(30,25,20,0.06);
+}
+
+/* ── Display font ─────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  letter-spacing: -0.02em;
 }
 
 /* ── Utility ─────────────────────────────────────────────────────────────── */
 
-/* Smooth page entrance */
 .fade-in {
   animation: fadeIn 0.25s var(--ease-out) both;
 }
@@ -71,16 +132,13 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Sidebar nav item hover */
 .nav-item:hover {
-  background: rgba(0,0,0,0.04) !important;
+  background: var(--secondary) !important;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar       { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+::-webkit-scrollbar-thumb { background: oklch(0.7 0.008 70 / 0.5); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.6 0.008 70 / 0.6); }
 
-/* Selection */
-::selection { background: rgba(10,184,122,0.18); color: var(--text); }
+::selection { background: oklch(0.42 0.075 155 / 0.15); color: var(--text); }

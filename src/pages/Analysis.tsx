@@ -11,11 +11,11 @@ import { Card } from '../components/ui/Card'
 import { formatCurrency } from '../utils/formatters'
 import { Subscription, AppSettings } from '../types'
 
-const GREEN = '#06C68A'
+const GREEN = 'var(--primary)'
 const NAVY = 'var(--text)'
-const RED = '#ef4444'
-const AMBER = '#f59e0b'
-const BILLS_COLOR = '#f97316'
+const RED = 'var(--destructive)'
+const AMBER = 'var(--warning)'
+const BILLS_COLOR = 'var(--primary)'
 const GRAY = 'var(--text-muted)'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,8 +62,43 @@ function StatTile({ label, value, color, sub }: { label: string; value: string; 
   return (
     <Card style={{ padding: '18px 20px', textAlign: 'center' }}>
       <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
-      <p style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</p>
+      <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</p>
       {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{sub}</p>}
+    </Card>
+  )
+}
+
+function SummaryStrip({ budgeted, spent, diff, sym, txCount }: {
+  budgeted: number; spent: number; diff: number; sym: string; txCount: number
+}) {
+  const isOver = diff < 0
+  const cols = [
+    { label: 'Budgeted',  value: formatCurrency(budgeted, sym), color: NAVY },
+    { label: 'Spent',     value: formatCurrency(spent, sym),    color: spent > budgeted ? RED : NAVY },
+    { label: isOver ? 'Over Budget' : 'Remaining', value: formatCurrency(Math.abs(diff), sym), color: isOver ? RED : GREEN },
+  ]
+  return (
+    <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        {cols.map((c, i) => (
+          <div key={c.label} style={{
+            padding: '20px 24px',
+            borderRight: i < 2 ? '1px solid var(--border)' : undefined,
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{c.label}</p>
+            <p className="font-display" style={{ fontSize: 24, fontWeight: 700, color: c.color, lineHeight: 1 }}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+      {txCount >= 0 && (
+        <div style={{ padding: '8px 24px', borderTop: '1px solid var(--border)', background: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {txCount} transaction{txCount !== 1 ? 's' : ''} in this period
+            {txCount === 0 && ' — import via Transactions page'}
+          </span>
+        </div>
+      )}
     </Card>
   )
 }
@@ -223,7 +258,7 @@ export function Analysis() {
 
         {/* Mode toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', background: '#EDE8DF', borderRadius: 10, padding: 3, gap: 2 }}>
+          <div style={{ display: 'flex', background: 'var(--secondary)', borderRadius: 10, padding: 3, gap: 2 }}>
             {(['weekly', 'range'] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setViewMode(m)}
                 style={{
@@ -246,7 +281,7 @@ export function Analysis() {
               </button>
               <span style={{
                 fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '6px 16px', borderRadius: 8,
-                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : '#EDE8DF',
+                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : 'var(--secondary)',
                 border: '1px solid var(--border)',
                 minWidth: 170, textAlign: 'center',
               }}>
@@ -305,22 +340,14 @@ export function Analysis() {
         </div>
       )}
 
-      {/* ── Stat tiles ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        <StatTile label={viewMode === 'weekly' ? 'Weekly Budget' : `${weekCount.toFixed(1)}-Week Budget`} value={formatCurrency(totalBudgeted, sym)} color={NAVY} />
-        <StatTile label="Actually Spent" value={formatCurrency(totalActual, sym)} color={totalActual > totalBudgeted ? RED : NAVY} />
-        <StatTile
-          label={totalDiff >= 0 ? 'Under Budget' : 'Over Budget'}
-          value={formatCurrency(Math.abs(totalDiff), sym)}
-          color={totalDiff >= 0 ? GREEN : RED}
-        />
-        <StatTile
-          label="Transactions"
-          value={String(periodTxs.length)}
-          color={NAVY}
-          sub={periodTxs.length === 0 ? 'Import via Transactions page' : undefined}
-        />
-      </div>
+      {/* ── Summary strip ── */}
+      <SummaryStrip
+        budgeted={totalBudgeted}
+        spent={totalActual}
+        diff={totalDiff}
+        sym={sym}
+        txCount={periodTxs.length}
+      />
 
       {/* ── Main layout ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
@@ -383,8 +410,8 @@ export function Analysis() {
                   {/* Over/under badge */}
                   <div style={{
                     flexShrink: 0, padding: '6px 12px', borderRadius: 8,
-                    background: r.over ? 'var(--danger-dim)' : 'var(--accent-dim)',
-                    border: `1px solid ${r.over ? 'rgba(220,53,69,0.18)' : 'rgba(10,184,122,0.18)'}`,
+                    background: r.over ? 'oklch(0.56 0.15 25 / 0.09)' : 'oklch(0.42 0.075 155 / 0.09)',
+                    border: `1px solid ${r.over ? 'oklch(0.56 0.15 25 / 0.2)' : 'oklch(0.42 0.075 155 / 0.2)'}`,
                     textAlign: 'center',
                   }}>
                     <p style={{ fontSize: 10, fontWeight: 600, color: r.over ? RED : GREEN, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>

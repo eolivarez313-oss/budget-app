@@ -145,12 +145,12 @@ export function Home() {
           {activeWs && (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '4px 10px', borderRadius: 20,
-              background: 'var(--accent-dim)', border: '1px solid rgba(6,198,138,0.2)',
+              padding: '4px 10px', borderRadius: 9999,
+              background: 'var(--accent)', border: '1px solid var(--border)',
               marginBottom: 14,
             }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: ACCENT, letterSpacing: '0.04em' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-foreground)' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-foreground)', letterSpacing: '0.04em' }}>
                 {activeWs.name}
               </span>
             </div>
@@ -168,14 +168,14 @@ export function Home() {
           {/* Safe to spend */}
           <Card style={{ padding: '20px 22px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Wallet size={14} color={ACCENT} />
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Wallet size={14} color="var(--accent-foreground)" />
               </div>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                 Safe to spend today
               </span>
             </div>
-            <p style={{ fontSize: 30, fontWeight: 700, color: safeToSpendToday > 0 ? ACCENT : 'var(--danger)', letterSpacing: '-0.5px', lineHeight: 1 }}>
+            <p className="font-display" style={{ fontSize: 32, fontWeight: 700, color: safeToSpendToday > 0 ? 'var(--primary)' : 'var(--danger)', lineHeight: 1 }}>
               {formatCurrency(safeToSpendToday, sym)}
             </p>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
@@ -193,7 +193,7 @@ export function Home() {
                 Next paycheck
               </span>
             </div>
-            <p style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1 }}>
+            <p className="font-display" style={{ fontSize: 32, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
               {daysToPaycheck === 0 ? 'Today' : `${daysToPaycheck}d`}
             </p>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
@@ -206,7 +206,7 @@ export function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <div style={{
                 width: 30, height: 30, borderRadius: 8,
-                background: overBudgetCat ? 'var(--warning-dim)' : 'var(--accent-dim)',
+                background: overBudgetCat ? 'var(--warning-dim)' : 'var(--accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {overBudgetCat
@@ -220,7 +220,7 @@ export function Home() {
             </div>
             {overBudgetCat ? (
               <>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--warning)', lineHeight: 1.2 }}>
+                <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--warning)', lineHeight: 1.2 }}>
                   {overBudget.length} {overBudget.length === 1 ? 'category' : 'categories'} over
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
@@ -229,7 +229,7 @@ export function Home() {
               </>
             ) : (
               <>
-                <p style={{ fontSize: 22, fontWeight: 700, color: ACCENT, lineHeight: 1.2 }}>On track</p>
+                <p className="font-display" style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', lineHeight: 1.2 }}>On track</p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
                   {monthBudgets.length > 0 ? `All ${monthBudgets.length} budgets within limit` : 'No budgets set yet'}
                 </p>

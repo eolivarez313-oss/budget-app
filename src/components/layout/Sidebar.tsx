@@ -29,9 +29,9 @@ function Initials({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg, var(--accent), #09a46d)',
+      background: 'var(--primary)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.36, fontWeight: 700, color: '#fff',
+      fontSize: size * 0.36, fontWeight: 700, color: 'var(--primary-foreground)',
       flexShrink: 0, letterSpacing: '-0.5px',
     }}>
       {initials}
@@ -65,29 +65,28 @@ export function Sidebar() {
       display: 'flex', flexDirection: 'column',
       minHeight: '100vh',
       borderRight: '1px solid var(--border)',
-      boxShadow: '1px 0 0 var(--border)',
     }}>
-      {/* Workspace switcher */}
+      {/* Workspace switcher — pill-shaped */}
       <div style={{ padding: '20px 14px 14px', position: 'relative' }}>
         <button
           onClick={() => setDropdownOpen(o => !o)}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', borderRadius: 10,
-            background: dropdownOpen ? '#EDE8DF' : '#F0EBE3',
+            padding: '10px 14px', borderRadius: 9999,
+            background: dropdownOpen ? 'var(--secondary)' : 'var(--surface)',
             border: '1px solid var(--border)',
             cursor: 'pointer', transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
-          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = '#F0EBE3' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--secondary)' }}
+          onMouseLeave={e => { if (!dropdownOpen) (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}
         >
           <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'var(--accent)',
+            width: 24, height: 24, borderRadius: 8,
+            background: 'var(--primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <span style={{ fontSize: 13, color: '#fff', fontWeight: 700 }}>
+            <span style={{ fontSize: 12, color: 'var(--primary-foreground)', fontWeight: 700 }}>
               {(activeWs?.name ?? 'B')[0].toUpperCase()}
             </span>
           </div>
@@ -95,21 +94,19 @@ export function Sidebar() {
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
               {activeWs?.name ?? 'My Budget'}
             </p>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'capitalize' }}>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, textTransform: 'capitalize' }}>
               {activeWs?.type ?? 'personal'}
             </p>
           </div>
           <ChevronDown size={13} color="var(--text-muted)" style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
 
-        {/* Dropdown */}
+        {/* Dropdown — card-surface */}
         {dropdownOpen && (
           <>
             <div onClick={() => setDropdownOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
-            <div style={{
+            <div className="card-surface" style={{
               position: 'absolute', top: '100%', left: 14, right: 14, zIndex: 100,
-              background: 'var(--elevated)', border: '1px solid var(--border)',
-              borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
               padding: '6px',
               marginTop: 4,
             }}>
@@ -119,17 +116,17 @@ export function Sidebar() {
                   onClick={() => handleSwitch(ws.id)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
-                    background: ws.id === activeWorkspaceId ? 'var(--accent-dim)' : 'transparent',
+                    padding: '9px 10px', borderRadius: 10, cursor: 'pointer',
+                    background: ws.id === activeWorkspaceId ? 'var(--accent)' : 'transparent',
                     border: 'none', transition: 'background 0.12s', textAlign: 'left',
                   }}
-                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = '#EDE8DF' }}
+                  onMouseEnter={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'var(--secondary)' }}
                   onMouseLeave={e => { if (ws.id !== activeWorkspaceId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <div style={{
-                    width: 24, height: 24, borderRadius: 6, background: 'var(--accent)',
+                    width: 24, height: 24, borderRadius: 6, background: 'var(--primary)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff',
+                    flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--primary-foreground)',
                   }}>
                     {ws.name[0].toUpperCase()}
                   </div>
@@ -137,7 +134,7 @@ export function Sidebar() {
                     <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</p>
                     <p style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{ws.type}</p>
                   </div>
-                  {ws.id === activeWorkspaceId && <Check size={13} color="var(--accent)" />}
+                  {ws.id === activeWorkspaceId && <Check size={13} color="var(--accent-foreground)" />}
                 </button>
               ))}
               <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
@@ -145,12 +142,12 @@ export function Sidebar() {
                 onClick={handleCreateWorkspace}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+                  padding: '9px 10px', borderRadius: 10, cursor: 'pointer',
                   background: 'transparent', border: 'none',
-                  color: 'var(--accent)', fontSize: 13, fontWeight: 500,
+                  color: 'var(--primary)', fontSize: 13, fontWeight: 500,
                   transition: 'background 0.12s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-dim)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <Plus size={13} /> New workspace
@@ -175,17 +172,17 @@ export function Sidebar() {
             className="nav-item"
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', borderRadius: 8,
+              padding: '8px 12px', borderRadius: 10,
               textDecoration: 'none', fontSize: 13,
               fontWeight: isActive ? 600 : 400,
-              color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-              background: isActive ? 'var(--accent-dim)' : 'transparent',
+              color: isActive ? 'var(--accent-foreground)' : 'var(--text-muted)',
+              background: isActive ? 'var(--accent)' : 'transparent',
               transition: 'all 0.15s',
             })}
           >
             {({ isActive }) => (
               <>
-                <Icon size={15} color={isActive ? 'var(--accent)' : 'var(--text-dim)'} style={{ flexShrink: 0 }} />
+                <Icon size={15} color={isActive ? 'var(--accent-foreground)' : 'var(--text-dim)'} style={{ flexShrink: 0 }} />
                 {label}
               </>
             )}
@@ -201,14 +198,14 @@ export function Sidebar() {
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px', borderRadius: 10,
             textDecoration: 'none',
-            background: isActive ? 'var(--accent-dim)' : '#F0EBE3',
+            background: isActive ? 'var(--accent)' : 'var(--surface)',
             border: '1px solid var(--border)',
             transition: 'background 0.15s',
           })}
         >
           {profile.name
             ? <Initials name={profile.name} size={30} />
-            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#DDD6CA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            : <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={14} color="var(--text-muted)" />
               </div>
           }

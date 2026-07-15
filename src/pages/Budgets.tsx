@@ -14,10 +14,13 @@ import { getMonthIncome } from '../utils/calculations'
 import { Budget, Subscription } from '../types'
 import { uuid } from '../utils/uuid'
 
-const GREEN = '#06C68A'
-const NAVY = '#1A1F36'
-const BILLS_COLOR = '#f97316'
-const UNALLOCATED_COLOR = '#D0D5DD'
+const GREEN = 'oklch(0.42 0.075 155)'
+const NAVY = 'var(--text)'
+const BILLS_COLOR = 'oklch(0.42 0.075 155)'         // forest green for bills
+const BILLS_COLOR_LIGHT = 'oklch(0.55 0.08 155)'    // lighter shade for the bills slice fill
+const UNALLOCATED_COLOR = 'oklch(0.86 0.012 75)'    // warm neutral
+// warm terracotta/amber palette for discretionary categories
+const TERRACOTTA = ['#C06040','#D07A50','#B8522E','#E08B62','#CA6848','#A84628','#D99068','#BF7050']
 const WEEKLY_SENTINEL = 'weekly'
 
 const PAYCHECKS_PER_MONTH: Record<string, number> = { weekly: 4, biweekly: 2, 'semi-monthly': 2, monthly: 1 }
@@ -167,9 +170,10 @@ export function Budgets() {
   const slices: PieSlice[] = []
 
   if (weeklyBills > 0) {
-    slices.push({ id: 'bills', name: 'Bills', value: weeklyBills, color: BILLS_COLOR, isBills: true })
+    slices.push({ id: 'bills', name: 'Fixed Bills', value: weeklyBills, color: BILLS_COLOR_LIGHT, isBills: true })
   }
 
+  let discretionaryIdx = 0
   for (const budget of weeklyBudgets) {
     if (budget.monthlyLimit <= 0) continue
     const cat = state.categories.find(c => c.id === budget.categoryId)
@@ -177,11 +181,12 @@ export function Budgets() {
       id: budget.id,
       name: cat?.name || 'Unknown',
       value: budget.monthlyLimit,
-      color: cat?.color || '#8A94A6',
+      color: TERRACOTTA[discretionaryIdx % TERRACOTTA.length],
       budgetId: budget.id,
       categoryId: budget.categoryId,
       icon: cat?.icon,
     })
+    discretionaryIdx++
   }
 
   if (remaining > 0) {
@@ -332,7 +337,7 @@ export function Budgets() {
                           <Cell
                             key={slice.id}
                             fill={slice.color}
-                            stroke={isSelected ? slice.color : slice.isBills ? '#c2410c' : slice.isUnallocated ? '#B8BEC8' : 'white'}
+                            stroke={isSelected ? slice.color : slice.isBills ? 'oklch(0.36 0.075 155)' : slice.isUnallocated ? 'var(--border)' : 'var(--card)'}
                             strokeWidth={isSelected ? 4 : slice.isBills ? 2.5 : slice.isUnallocated ? 0 : 1}
                             opacity={selectedId && !isSelected ? 0.45 : 1}
                           />
@@ -364,6 +369,17 @@ export function Budgets() {
                   </PieChart>
                 </ResponsiveContainer>
 
+                {/* Dotted inner ring divider */}
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                  <circle
+                    cx="50%" cy="50%" r="72"
+                    fill="none"
+                    stroke="var(--border-strong)"
+                    strokeWidth="1"
+                    strokeDasharray="3 4"
+                  />
+                </svg>
+
                 {/* Donut center label */}
                 <div style={{
                   position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -373,21 +389,21 @@ export function Budgets() {
                   <div style={{ textAlign: 'center' }}>
                     {selectedSlice && !selectedSlice.isUnallocated ? (
                       <>
-                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{selectedSlice.icon || ''} {selectedSlice.name}</p>
-                        <p style={{ fontSize: 22, fontWeight: 700, color: selectedSlice.color }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{selectedSlice.icon || ''} {selectedSlice.name}</p>
+                        <p className="font-display" style={{ fontSize: 24, fontWeight: 700, color: selectedSlice.color }}>
                           {formatCurrency(selectedSlice.value, sym)}
                         </p>
-                        <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                           {totalPie > 0 ? ((selectedSlice.value / totalPie) * 100).toFixed(0) : 0}% of check
                         </p>
                       </>
                     ) : (
                       <>
-                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>per paycheck</p>
-                        <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>per paycheck</p>
+                        <p className="font-display" style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>
                           {formatCurrency(weeklyPaycheck, sym)}
                         </p>
-                        <p style={{ fontSize: 11, color: fullyAllocated ? GREEN : '#8A94A6' }}>
+                        <p style={{ fontSize: 11, color: fullyAllocated ? GREEN : 'var(--text-muted)', marginTop: 3 }}>
                           {fullyAllocated ? '✓ fully allocated' : `${formatCurrency(Math.max(0, remaining), sym)} left`}
                         </p>
                       </>
@@ -396,31 +412,30 @@ export function Budgets() {
                 </div>
               </div>
 
-              {/* Legend */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: 12, justifyContent: 'center' }}>
-                {slices.map(s => {
-                  const pct = totalPie > 0 ? ((s.value / totalPie) * 100).toFixed(0) : '0'
-                  const isSelected = selectedId === s.id
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => handleSliceClick(s)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-                        background: isSelected ? s.color + '14' : 'none',
-                        border: `1px solid ${isSelected ? s.color + '40' : 'transparent'}`,
-                        cursor: s.isUnallocated ? 'default' : 'pointer',
-                        padding: '3px 8px', borderRadius: 20,
-                        opacity: selectedId && !isSelected ? 0.5 : 1,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <div style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                      <span style={{ color: 'var(--text-muted)' }}>{s.icon ? `${s.icon} ` : ''}{s.name}</span>
-                      <span style={{ color: 'var(--text)', fontWeight: 600 }}>{pct}%</span>
-                    </button>
-                  )
-                })}
+              {/* Two-item legend */}
+              <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
+                {weeklyBills > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: BILLS_COLOR_LIGHT, flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Fixed Bills</span>
+                    <span style={{ color: BILLS_COLOR, fontWeight: 700 }}>{totalPie > 0 ? ((weeklyBills / totalPie) * 100).toFixed(0) : 0}%</span>
+                  </div>
+                )}
+                {weeklyBudgets.some(b => b.monthlyLimit > 0) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: TERRACOTTA[0], flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Discretionary</span>
+                    <span style={{ color: TERRACOTTA[0], fontWeight: 700 }}>
+                      {totalPie > 0 ? (((totalPie - weeklyBills - (remaining > 0 ? remaining : 0)) / totalPie) * 100).toFixed(0) : 0}%
+                    </span>
+                  </div>
+                )}
+                {remaining > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 3, background: UNALLOCATED_COLOR, flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Unallocated</span>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -444,9 +459,9 @@ export function Budgets() {
               <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
                 Left to budget from this paycheck
               </p>
-              <p style={{
-                fontSize: 38, fontWeight: 700, letterSpacing: '-1.5px', marginBottom: 4,
-                color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY,
+              <p className="font-display" style={{
+                fontSize: 38, fontWeight: 700, marginBottom: 4,
+                color: overAllocated ? 'var(--destructive)' : fullyAllocated ? GREEN : NAVY,
               }}>
                 {formatCurrency(Math.abs(remaining), sym)}
               </p>

@@ -2,13 +2,13 @@ import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, Reac
 
 const base: React.CSSProperties = {
   width: '100%',
-  background: '#F5F0E8',
+  background: 'var(--secondary)',
   border: '1px solid var(--border)',
-  borderRadius: 10,
+  borderRadius: 'var(--radius)',
   padding: '10px 12px',
   fontSize: 13.5,
   color: 'var(--text)',
-  fontFamily: 'inherit',
+  fontFamily: '"Inter", system-ui, sans-serif',
   outline: 'none',
   lineHeight: 1.5,
   transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
@@ -18,7 +18,7 @@ interface FieldProps { label?: string; error?: string; children: ReactNode }
 export function Field({ label, error, children }: FieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {label && <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>}
+      {label && <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>}
       {children}
       {error && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 2 }}>{error}</p>}
     </div>
@@ -30,15 +30,15 @@ export function Input({ style, onFocus, onBlur, ...props }: InputHTMLAttributes<
     <input
       style={{ ...base, ...style }}
       onFocus={e => {
-        e.currentTarget.style.borderColor = 'var(--accent)'
-        e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
-        e.currentTarget.style.background = 'var(--surface)'
+        e.currentTarget.style.borderColor = 'var(--ring)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px oklch(0.42 0.075 155 / 0.12)'
+        e.currentTarget.style.background = 'var(--card)'
         onFocus?.(e)
       }}
       onBlur={e => {
         e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F5F0E8'
+        e.currentTarget.style.background = 'var(--secondary)'
         onBlur?.(e)
       }}
       {...props}
@@ -81,15 +81,15 @@ export function Textarea({ style, onFocus, onBlur, ...props }: TextareaHTMLAttri
     <textarea
       style={{ ...base, resize: 'none', ...style }}
       onFocus={e => {
-        e.currentTarget.style.borderColor = 'var(--accent)'
-        e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
-        e.currentTarget.style.background = 'var(--surface)'
+        e.currentTarget.style.borderColor = 'var(--ring)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px oklch(0.42 0.075 155 / 0.12)'
+        e.currentTarget.style.background = 'var(--card)'
         onFocus?.(e)
       }}
       onBlur={e => {
         e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F5F0E8'
+        e.currentTarget.style.background = 'var(--secondary)'
         onBlur?.(e)
       }}
       {...props}
