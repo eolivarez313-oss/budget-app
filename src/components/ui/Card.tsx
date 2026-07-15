@@ -1,5 +1,5 @@
-import { ReactNode, CSSProperties } from 'react'
-import { motion } from 'framer-motion'
+import { ReactNode, CSSProperties, useState } from 'react'
+import { get3DTiltStyle, tilt3DReset } from '../../utils/motion'
 
 interface CardProps {
   children: ReactNode
@@ -11,18 +11,19 @@ interface CardProps {
 
 export function Card({ children, className = '', style, onClick, hover }: CardProps) {
   const cls = `card-surface${className ? ' ' + className : ''}`
+  const [tiltStyle, setTiltStyle] = useState<CSSProperties>({})
 
   if (hover || onClick) {
     return (
-      <motion.div
+      <div
         className={cls}
         onClick={onClick}
-        style={{ cursor: hover || onClick ? 'pointer' : undefined, ...style }}
-        whileHover={{ background: 'var(--secondary)', y: -2 } as any}
-        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+        style={{ cursor: 'pointer', ...style, ...tiltStyle }}
+        onMouseMove={e => setTiltStyle(get3DTiltStyle(e, 4))}
+        onMouseLeave={() => setTiltStyle(tilt3DReset)}
       >
         {children}
-      </motion.div>
+      </div>
     )
   }
 

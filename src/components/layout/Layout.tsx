@@ -24,10 +24,11 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <main style={{
         flex: 1, minWidth: 0, overflowY: 'auto',
-        padding: '36px 44px',
+        padding: '28px 36px',
         position: 'relative',
         background: 'var(--background)',
-        transition: 'padding 0.25s ease',
+        perspective: '1400px',
+        perspectiveOrigin: '50% 0%',
       }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -37,6 +38,7 @@ export function Layout({ children }: { children: ReactNode }) {
             animate="animate"
             exit="exit"
             transition={transitions.page}
+            style={{ transformOrigin: 'top center' }}
           >
             {children}
           </motion.div>

@@ -1,558 +1,471 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Check, Pencil } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import { formatCurrency, currentMonth } from '../utils/formatters'
-import { Card } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
-import { Input, Field } from '../components/ui/Input'
-import { transitions, cardVariants } from '../utils/motion'
-import { Transaction, Category } from '../types'
+import { transitions } from '../utils/motion'
 
-// ── Lane persistence key ──────────────────────────────────────────────────────
-const LANES_KEY = 'meridian_flow_lanes'
+// ─── SVG layout constants ─────────────────────────────────────────────────────
+const NODE_W   = 14
+const NODE_GAP = 14
+const REF_H    = 500   // pixel height = 100% of income
+const MIN_H    = 18
+const PAD_TOP  = 30
+const PAD_BTM  = 30
+const SVG_W    = 1020
+// Column left-edges (room for left labels and right labels)
+const COL_X = [150, 340, 590, 840] as [number, number, number, number]
 
-// ── Color palette for custom lanes ───────────────────────────────────────────
-const LANE_COLORS = [
-  { name: 'Forest',     value: 'oklch(0.42 0.075 155)' },
-  { name: 'Terracotta', value: 'oklch(0.52 0.13 30)'   },
-  { name: 'Steel',      value: 'oklch(0.46 0.10 240)'  },
-  { name: 'Plum',       value: 'oklch(0.44 0.10 295)'  },
-  { name: 'Amber',      value: 'oklch(0.55 0.13 60)'   },
-  { name: 'Teal',       value: 'oklch(0.48 0.10 195)'  },
-]
+// ─── Color palette ────────────────────────────────────────────────────────────
+const INCOME_COLOR        = 'oklch(0.72 0.13 68)'
+const SAVINGS_COLOR       = 'oklch(0.46 0.09 155)'
+const FIXED_COLOR         = 'oklch(0.56 0.14 28)'
+const DISCRETIONARY_COLOR = 'oklch(0.50 0.10 240)'
+const UNSPENT_COLOR       = 'oklch(0.62 0.03 100)'
 
-// ── Data model ────────────────────────────────────────────────────────────────
-interface Lane {
-  id:          string
-  name:        string
-  color:       string
-  type:        'income' | 'bills' | 'savings' | 'discretionary' | 'custom'
-  categoryIds: string[]   // for custom lanes: which categories to include
-  isDefault:   boolean
+const SAVINGS_RE = /savings?|invest|goal|emergency|401k|ira|transfer/i
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function scaleH(value: number, total: number): number {
+  if (total <= 0) return MIN_H
+  return Math.max(MIN_H, Math.round((value / total) * REF_H))
 }
 
-function loadCustomLanes(): Lane[] {
-  try { return JSON.parse(localStorage.getItem(LANES_KEY) || '[]') } catch { return [] }
-}
-function saveCustomLanes(lanes: Lane[]) {
-  localStorage.setItem(LANES_KEY, JSON.stringify(lanes))
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function weekLabel(date: Date): number {
-  return Math.ceil(date.getDate() / 7)  // 1–5
-}
-
-function monthWeeks(month: string): { label: string; start: number; end: number }[] {
-  const [y, m] = month.split('-').map(Number)
-  const days = new Date(y, m, 0).getDate()
-  return [
-    { label: 'Wk 1', start: 1,  end: Math.min(7,    days) },
-    { label: 'Wk 2', start: 8,  end: Math.min(14,   days) },
-    { label: 'Wk 3', start: 15, end: Math.min(21,   days) },
-    { label: 'Wk 4', start: 22, end: Math.min(28,   days) },
-    ...(days > 28 ? [{ label: 'Wk 5', start: 29, end: days }] : []),
-  ]
+function stackNodes(values: number[], total: number): { y: number; h: number }[] {
+  const hs = values.map(v => scaleH(v, total))
+  const totalH = hs.reduce((s, h) => s + h, 0) + NODE_GAP * Math.max(0, hs.length - 1)
+  let y = PAD_TOP + Math.max(0, (REF_H - totalH) / 2)
+  return hs.map(h => {
+    const pos = { y, h }
+    y += h + NODE_GAP
+    return pos
+  })
 }
 
-function txPosition(date: string, month: string): number {
-  const day  = parseInt(date.split('-')[2], 10)
-  const [y, m] = month.split('-').map(Number)
-  const days = new Date(y, m, 0).getDate()
-  return ((day - 1) / (days - 1)) * 100  // 0–100%
-}
-
-// ── Lane transaction filter ───────────────────────────────────────────────────
-function txForLane(
-  lane: Lane,
-  txs: Transaction[],
-  month: string,
-  billCategoryIds: Set<string>,
-  savingsCategoryIds: Set<string>,
-): Transaction[] {
-  const monthTxs = txs.filter(t => t.date.startsWith(month))
-  if (lane.type === 'income')        return monthTxs.filter(t => t.type === 'income')
-  if (lane.type === 'bills')         return monthTxs.filter(t => t.type === 'expense' && billCategoryIds.has(t.categoryId))
-  if (lane.type === 'savings')       return monthTxs.filter(t => t.type === 'expense' && savingsCategoryIds.has(t.categoryId))
-  if (lane.type === 'discretionary') return monthTxs.filter(t => t.type === 'expense' && !billCategoryIds.has(t.categoryId) && !savingsCategoryIds.has(t.categoryId))
-  if (lane.type === 'custom')        return monthTxs.filter(t => lane.categoryIds.includes(t.categoryId))
-  return []
-}
-
-function laneTotal(txs: Transaction[]): number {
-  return txs.reduce((s, t) => s + t.amount, 0)
-}
-
-// ── Create Lane modal ─────────────────────────────────────────────────────────
-interface CreateLaneProps {
-  categories: Category[]
-  onSave:     (lane: Lane) => void
-  onClose:    () => void
-}
-
-function CreateLaneModal({ categories, onSave, onClose }: CreateLaneProps) {
-  const [step, setStep]   = useState<'name' | 'color' | 'cats'>('name')
-  const [name, setName]   = useState('')
-  const [color, setColor] = useState(LANE_COLORS[0].value)
-  const [cats, setCats]   = useState<string[]>([])
-
-  const expenseCats = categories.filter(c => c.type === 'expense')
-
-  function toggleCat(id: string) {
-    setCats(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
-  }
-
-  function save() {
-    const lane: Lane = {
-      id:          Math.random().toString(36).slice(2),
-      name:        name.trim(),
-      color,
-      type:        'custom',
-      categoryIds: cats,
-      isDefault:   false,
-    }
-    onSave(lane)
-  }
-
+// Smooth S-curve ribbon
+function ribbonPath(
+  sx: number, sy: number, sh: number,
+  tx: number, ty: number, th: number,
+): string {
+  const cpx = sx + (tx - sx) * 0.5
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={transitions.fast}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      }}
-    >
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97 }}
-        transition={transitions.base}
-        style={{
-          position: 'relative', width: '100%', maxWidth: 460,
-          background: 'var(--card)', borderRadius: 20,
-          border: '1px solid var(--border)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
-          padding: '28px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>New lane</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)' }}>
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Step indicators */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
-          {(['name','color','cats'] as const).map((s, i) => (
-            <div key={s} style={{
-              flex: 1, height: 3, borderRadius: 99,
-              background: (['name','color','cats'].indexOf(step) >= i) ? 'var(--primary)' : 'var(--border)',
-              transition: 'background 0.25s',
-            }} />
-          ))}
-        </div>
-
-        {step === 'name' && (
-          <div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.55 }}>
-              Give your lane a name — e.g. "Side income", "Rent", or "Partner A".
-            </p>
-            <Field label="Lane name">
-              <Input
-                value={name} autoFocus
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && name.trim()) setStep('color') }}
-                placeholder="e.g. Side income"
-              />
-            </Field>
-            <Button onClick={() => setStep('color')} disabled={!name.trim()} style={{ width: '100%', marginTop: 16 }}>
-              Next: choose color
-            </Button>
-          </div>
-        )}
-
-        {step === 'color' && (
-          <div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Pick an accent color for <strong>{name}</strong>.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
-              {LANE_COLORS.map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => setColor(c.value)}
-                  style={{
-                    padding: '10px 0', borderRadius: 10, cursor: 'pointer', border: 'none',
-                    background: c.value + '22',
-                    outline: color === c.value ? `2px solid ${c.value}` : '2px solid transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    transition: 'outline 0.15s',
-                  }}
-                >
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: c.value }} />
-                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)' }}>{c.name}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Button variant="secondary" onClick={() => setStep('name')} style={{ flex: 1 }}>Back</Button>
-              <Button onClick={() => setStep('cats')} style={{ flex: 1 }}>Next: categories</Button>
-            </div>
-          </div>
-        )}
-
-        {step === 'cats' && (
-          <div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.55 }}>
-              Which categories feed into this lane? Skip to include all.
-            </p>
-            <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
-              {expenseCats.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => toggleCat(cat.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
-                    background: cats.includes(cat.id) ? 'var(--accent)' : 'var(--secondary)',
-                    border: 'none', textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.12s',
-                  }}
-                >
-                  <span style={{ fontSize: 15 }}>{cat.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', flex: 1 }}>{cat.name}</span>
-                  {cats.includes(cat.id) && <Check size={12} color="var(--accent-foreground)" />}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Button variant="secondary" onClick={() => setStep('color')} style={{ flex: 1 }}>Back</Button>
-              <Button onClick={save} style={{ flex: 1, background: color }}>Create lane</Button>
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
+    `M${sx},${sy} ` +
+    `C${cpx},${sy} ${cpx},${ty} ${tx},${ty} ` +
+    `L${tx},${ty + th} ` +
+    `C${cpx},${ty + th} ${cpx},${sy + sh} ${sx},${sy + sh} ` +
+    `Z`
   )
 }
 
-// ── Transaction detail popover ────────────────────────────────────────────────
-function TxDetail({ tx, cat, sym, onClose }: { tx: Transaction; cat?: Category; sym: string; onClose: () => void }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 4 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={transitions.fast}
-      style={{
-        position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
-        transform: 'translateX(-50%)',
-        width: 220, background: 'var(--card)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: '12px 14px', zIndex: 100,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
-        pointerEvents: 'none',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 18 }}>{cat?.icon || '•'}</span>
-        <div>
-          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{tx.description}</p>
-          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>{tx.date} · {cat?.name}</p>
-        </div>
-      </div>
-      <p style={{ fontSize: 16, fontWeight: 700, color: tx.type === 'income' ? 'var(--primary)' : 'var(--destructive)', fontFamily: '"Fraunces", ui-serif, Georgia, serif' }}>
-        {tx.type === 'income' ? '+' : '−'}{formatCurrency(tx.amount, sym)}
-      </p>
-    </motion.div>
-  )
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-// ── Single swimlane row ───────────────────────────────────────────────────────
-interface LaneRowProps {
-  lane:   Lane
-  txs:    Transaction[]
-  cats:   Category[]
-  sym:    string
-  month:  string
-  weeks:  { label: string; start: number; end: number }[]
-  onRemove?: () => void
+function fmtAmt(n: number, sym = '$'): string {
+  if (n >= 1000) return `${sym}${(n / 1000).toFixed(1)}k`
+  return `${sym}${Math.round(n).toLocaleString()}`
 }
 
-function LaneRow({ lane, txs, cats, sym, month, weeks, onRemove }: LaneRowProps) {
-  const [hovered, setHovered] = useState<string | null>(null)
-  const total = laneTotal(txs)
-  const bg    = lane.color + '10'
-  const bdr   = lane.color + '40'
-
-  return (
-    <motion.div variants={cardVariants} style={{ display: 'flex', gap: 0, alignItems: 'stretch', minHeight: 88 }}>
-      {/* Lane label */}
-      <div style={{
-        width: 140, flexShrink: 0, display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', padding: '12px 16px',
-        background: 'var(--card)', borderRight: `3px solid ${lane.color}`,
-        borderRadius: '12px 0 0 12px', borderTop: '1px solid var(--border)',
-        borderBottom: '1px solid var(--border)', borderLeft: '1px solid var(--border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: lane.color, flexShrink: 0 }} />
-          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>{lane.name}</p>
-          {onRemove && (
-            <button onClick={onRemove} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 0, display: 'flex' }}>
-              <X size={10} />
-            </button>
-          )}
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 700, color: lane.color, fontFamily: '"Fraunces", ui-serif, Georgia, serif', letterSpacing: '-0.02em' }}>
-          {formatCurrency(total, sym)}
-        </p>
-        <p style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{txs.length} transaction{txs.length !== 1 ? 's' : ''}</p>
-      </div>
-
-      {/* Timeline area */}
-      <div style={{
-        flex: 1, position: 'relative',
-        background: bg, border: `1px solid ${bdr}`,
-        borderLeft: 'none', borderRadius: '0 12px 12px 0',
-        overflow: 'visible',
-      }}>
-        {/* Week grid lines */}
-        {weeks.slice(1).map((w, i) => (
-          <div key={i} style={{
-            position: 'absolute', top: 0, bottom: 0,
-            left: `${(w.start - 1) / 31 * 100}%`,
-            width: 1, background: lane.color + '25',
-          }} />
-        ))}
-
-        {/* Week labels (top) */}
-        {weeks.map(w => (
-          <div key={w.label} style={{
-            position: 'absolute', top: 6,
-            left: `${((w.start + w.end) / 2 - 1) / 31 * 100}%`,
-            transform: 'translateX(-50%)',
-            fontSize: 8, fontWeight: 600, color: lane.color + 'aa', letterSpacing: '0.06em',
-          }}>
-            {w.label}
-          </div>
-        ))}
-
-        {/* Transactions */}
-        {txs.map(tx => {
-          const left = txPosition(tx.date, month)
-          const cat  = cats.find(c => c.id === tx.categoryId)
-          return (
-            <div
-              key={tx.id}
-              style={{ position: 'absolute', left: `${left}%`, top: '50%', transform: 'translate(-50%, -50%)', zIndex: 2 }}
-              onMouseEnter={() => setHovered(tx.id)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              <motion.div
-                whileHover={{ scale: 1.12 }}
-                transition={transitions.fast}
-                style={{
-                  padding: '4px 8px', borderRadius: 9999,
-                  background: lane.color, color: '#fff',
-                  fontSize: 9, fontWeight: 700, cursor: 'pointer',
-                  whiteSpace: 'nowrap', boxShadow: `0 2px 8px ${lane.color}55`,
-                }}
-              >
-                {formatCurrency(tx.amount, sym)}
-              </motion.div>
-              <AnimatePresence>
-                {hovered === tx.id && (
-                  <TxDetail tx={tx} cat={cat} sym={sym} onClose={() => setHovered(null)} />
-                )}
-              </AnimatePresence>
-            </div>
-          )
-        })}
-
-        {/* Empty state */}
-        {txs.length === 0 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p style={{ fontSize: 10, color: lane.color + '60', fontStyle: 'italic' }}>No activity this month</p>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  )
+function pct(value: number, total: number): string {
+  if (total <= 0) return '0%'
+  return `${Math.round((value / total) * 100)}%`
 }
 
-// ── Flow arrows (SVG overlay showing income→lane splits) ──────────────────────
-interface FlowArrowsProps {
-  incomeTotal: number
-  billsTotal:  number
-  savingsTotal: number
-  discTotal:   number
-  sym: string
-}
-function FlowSummary({ incomeTotal, billsTotal, savingsTotal, discTotal, sym }: FlowArrowsProps) {
-  if (incomeTotal === 0) return null
-  return (
-    <div style={{
-      background: 'var(--card)', borderRadius: 14, border: '1px solid var(--border)',
-      padding: '14px 20px', marginBottom: 20,
-      display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto',
-    }}>
-      {/* Income */}
-      <div style={{ textAlign: 'center', minWidth: 90 }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: LANE_COLORS[0].value, margin: '0 auto 4px' }} />
-        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Income</p>
-        <p style={{ fontSize: 16, fontWeight: 700, color: LANE_COLORS[0].value, fontFamily: '"Fraunces", ui-serif, serif' }}>{formatCurrency(incomeTotal, sym)}</p>
-      </div>
-
-      {/* Arrows */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, padding: '0 12px' }}>
-        {[
-          { label: 'Bills',         value: billsTotal,   color: LANE_COLORS[1].value },
-          { label: 'Savings',       value: savingsTotal, color: LANE_COLORS[2].value },
-          { label: 'Discretionary', value: discTotal,    color: LANE_COLORS[3].value },
-        ].filter(x => x.value > 0).map(x => (
-          <div key={x.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${LANE_COLORS[0].value}88, ${x.color}88)`, position: 'relative' }}>
-              <div style={{ position: 'absolute', right: -4, top: -4, width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: `6px solid ${x.color}88` }} />
-            </div>
-            <div style={{ textAlign: 'right', minWidth: 100 }}>
-              <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{x.label}</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: x.color, fontFamily: '"Fraunces", ui-serif, serif' }}>{formatCurrency(x.value, sym)}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface AllocGroup {
+  key: string
+  label: string
+  color: string
+  total: number
+  cats: { id: string; name: string; icon: string; amount: number }[]
 }
 
-// ── Main Flow component ───────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 export function Flow() {
-  const { state }  = useStore()
-  const sym        = state.settings.currencySymbol || '$'
-  const month      = currentMonth()
-  const weeks      = monthWeeks(month)
-  const [showCreate, setShowCreate]       = useState(false)
-  const [customLanes, setCustomLanes]     = useState<Lane[]>(loadCustomLanes)
+  const store = useStore() as any
+  const transactions  = store.transactions  ?? []
+  const categories    = store.categories    ?? []
+  const subscriptions = store.subscriptions ?? []
+  const settings      = store.settings      ?? {}
+  const sym = settings.currencySymbol ?? '$'
 
-  // Determine bill categories (those associated with active subscriptions)
-  const billCategoryIds = useMemo(() => {
-    const ids = new Set<string>()
-    state.subscriptions.filter(s => s.status === 'active').forEach(s => ids.add(s.categoryId))
-    return ids
-  }, [state.subscriptions])
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string; value: number } | null>(null)
 
-  // Determine savings categories (keywords heuristic)
-  const savingsCategoryIds = useMemo(() => {
-    const SAVINGS_KEYWORDS = /savings?|invest|goal|emergency|401k|ira|transfer/i
-    const ids = new Set<string>()
-    state.categories.filter(c => SAVINGS_KEYWORDS.test(c.name)).forEach(c => ids.add(c.id))
-    return ids
-  }, [state.categories])
+  const month = currentMonth()
 
-  // Default lanes
-  const defaultLanes: Lane[] = [
-    { id: 'income',        name: 'Income',        color: LANE_COLORS[0].value, type: 'income',        categoryIds: [], isDefault: true },
-    { id: 'bills',         name: 'Bills',         color: LANE_COLORS[1].value, type: 'bills',         categoryIds: [], isDefault: true },
-    { id: 'savings',       name: 'Savings',       color: LANE_COLORS[2].value, type: 'savings',       categoryIds: [], isDefault: true },
-    { id: 'discretionary', name: 'Discretionary', color: LANE_COLORS[3].value, type: 'discretionary', categoryIds: [], isDefault: true },
-  ]
+  // ── Compute source data ────────────────────────────────────────────────────
+  const data = useMemo(() => {
+    const incomeTxs  = transactions.filter((t: any) => t.type === 'income'  && String(t.date ?? '').startsWith(month))
+    const expenseTxs = transactions.filter((t: any) => t.type === 'expense' && String(t.date ?? '').startsWith(month))
 
-  const allLanes = [...defaultLanes, ...customLanes]
+    const billCatIds = new Set<string>(
+      subscriptions
+        .filter((s: any) => s.status === 'active' || s.active)
+        .map((s: any) => s.categoryId)
+        .filter(Boolean),
+    )
+    const savingsCatIds = new Set<string>(
+      categories.filter((c: any) => SAVINGS_RE.test(c.name ?? '')).map((c: any) => c.id),
+    )
 
-  function addLane(lane: Lane) {
-    const next = [...customLanes, lane]
-    setCustomLanes(next)
-    saveCustomLanes(next)
-    setShowCreate(false)
+    let totalIncome: number = incomeTxs.reduce((s: number, t: any) => s + (t.amount ?? 0), 0)
+    if (totalIncome === 0) totalIncome = settings.monthlyIncome ?? settings.paycheckAmount ?? 0
+
+    // Income sources grouped by category
+    const incomeByCat: Record<string, { name: string; icon: string; amount: number }> = {}
+    for (const t of incomeTxs) {
+      const cat = categories.find((c: any) => c.id === t.categoryId)
+      const key = cat?.id ?? 'paycheck'
+      if (!incomeByCat[key]) incomeByCat[key] = { name: cat?.name ?? 'Paycheck', icon: cat?.icon ?? '💵', amount: 0 }
+      incomeByCat[key].amount += t.amount ?? 0
+    }
+    let incomeSources = Object.entries(incomeByCat).map(([id, v]) => ({ id, ...v }))
+    if (incomeSources.length === 0 && totalIncome > 0) {
+      incomeSources = [{ id: 'paycheck', name: 'Paycheck', icon: '💵', amount: totalIncome }]
+    }
+
+    // Expense groups
+    const groups: Record<string, AllocGroup> = {
+      savings:       { key: 'savings',       label: 'Savings',     color: SAVINGS_COLOR,       total: 0, cats: [] },
+      fixed:         { key: 'fixed',         label: 'Fixed Costs', color: FIXED_COLOR,         total: 0, cats: [] },
+      discretionary: { key: 'discretionary', label: 'Spending',    color: DISCRETIONARY_COLOR, total: 0, cats: [] },
+    }
+
+    const catAmounts: Record<string, number> = {}
+    for (const t of expenseTxs) {
+      if (!t.categoryId) continue
+      catAmounts[t.categoryId] = (catAmounts[t.categoryId] ?? 0) + (t.amount ?? 0)
+    }
+
+    for (const [catId, amount] of Object.entries(catAmounts)) {
+      const cat = categories.find((c: any) => c.id === catId)
+      const entry = { id: catId, name: cat?.name ?? 'Other', icon: cat?.icon ?? '📂', amount: amount as number }
+      if (savingsCatIds.has(catId)) {
+        groups.savings.total += amount as number; groups.savings.cats.push(entry)
+      } else if (billCatIds.has(catId)) {
+        groups.fixed.total += amount as number; groups.fixed.cats.push(entry)
+      } else {
+        groups.discretionary.total += amount as number; groups.discretionary.cats.push(entry)
+      }
+    }
+
+    const totalSpent = groups.savings.total + groups.fixed.total + groups.discretionary.total
+    const unspent = Math.max(0, totalIncome - totalSpent)
+
+    const allocs: AllocGroup[] = [
+      groups.savings,
+      groups.fixed,
+      groups.discretionary,
+      ...(unspent > 100 ? [{ key: 'unspent', label: 'Unspent', color: UNSPENT_COLOR, total: unspent, cats: [] }] : []),
+    ].filter(a => a.total > 0)
+
+    return { incomeSources, totalIncome, allocs, unspent }
+  }, [transactions, categories, subscriptions, settings, month])
+
+  // ── Build Sankey layout ────────────────────────────────────────────────────
+  const sankey = useMemo(() => {
+    const { incomeSources, totalIncome, allocs } = data
+    if (totalIncome <= 0) return null
+
+    const col1 = stackNodes(incomeSources.map(s => s.amount), totalIncome)
+    const col2 = [{ y: PAD_TOP, h: REF_H }]
+    const col3 = stackNodes(allocs.map(a => a.total), totalIncome)
+
+    // Col 4: categories grouped under their allocation, centered within the alloc band
+    const col4Groups: { items: { y: number; h: number }[] }[] = []
+    for (let i = 0; i < allocs.length; i++) {
+      const alloc = allocs[i]
+      const allocPos = col3[i]
+      if (alloc.cats.length === 0) {
+        col4Groups.push({ items: [{ y: allocPos.y, h: allocPos.h }] })
+        continue
+      }
+      const catHs   = alloc.cats.map(c => scaleH(c.amount, totalIncome))
+      const totalCH = catHs.reduce((s, h) => s + h, 0) + NODE_GAP * (catHs.length - 1)
+      let cy = allocPos.y + (allocPos.h - totalCH) / 2
+      if (cy < PAD_TOP) cy = PAD_TOP
+      const items = catHs.map(h => { const pos = { y: cy, h }; cy += h + NODE_GAP; return pos })
+      col4Groups.push({ items })
+    }
+
+    // ── Ribbons ───────────────────────────────────────────────────────────────
+    const ribbons: { id: string; path: string; color: string; opacity: number; value: number; label: string }[] = []
+
+    // Col 1 → Col 2
+    let tgtY2 = col2[0].y
+    for (let i = 0; i < incomeSources.length; i++) {
+      const src = col1[i]
+      const v = incomeSources[i].amount
+      const th = scaleH(v, totalIncome)
+      ribbons.push({ id: `src-${i}`, path: ribbonPath(COL_X[0] + NODE_W, src.y, src.h, COL_X[1], tgtY2, th), color: INCOME_COLOR, opacity: 0.30, value: v, label: incomeSources[i].name })
+      tgtY2 += th
+    }
+
+    // Col 2 → Col 3
+    let srcY2 = col2[0].y
+    for (let i = 0; i < allocs.length; i++) {
+      const tgt = col3[i]
+      const v = allocs[i].total
+      const sh = scaleH(v, totalIncome)
+      ribbons.push({ id: `alloc-${allocs[i].key}`, path: ribbonPath(COL_X[1] + NODE_W, srcY2, sh, COL_X[2], tgt.y, tgt.h), color: allocs[i].color, opacity: 0.30, value: v, label: allocs[i].label })
+      srcY2 += sh
+    }
+
+    // Col 3 → Col 4
+    for (let i = 0; i < allocs.length; i++) {
+      const alloc = allocs[i]
+      if (alloc.cats.length === 0) continue
+      const srcPos = col3[i]
+      const group = col4Groups[i]
+      let srcY3 = srcPos.y
+      for (let j = 0; j < alloc.cats.length; j++) {
+        const cat = alloc.cats[j]
+        const tgt = group.items[j]
+        if (!tgt) continue
+        const v = cat.amount
+        const sh = scaleH(v, totalIncome)
+        ribbons.push({ id: `cat-${cat.id}`, path: ribbonPath(COL_X[2] + NODE_W, srcY3, sh, COL_X[3], tgt.y, tgt.h), color: alloc.color, opacity: 0.24, value: v, label: cat.name })
+        srcY3 += sh
+      }
+    }
+
+    const maxY = Math.max(
+      ...col1.map(n => n.y + n.h),
+      ...col3.map(n => n.y + n.h),
+      ...col4Groups.flatMap(g => g.items.map(i => i.y + i.h)),
+    )
+    const svgH = Math.max(REF_H + PAD_TOP + PAD_BTM, maxY + PAD_BTM + 40)
+
+    return { col1, col2, col3, col4Groups, incomeSources: data.incomeSources, allocs, ribbons, svgH, totalIncome }
+  }, [data])
+
+  if (!sankey) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 12 }}>
+        <TrendingUp size={36} color="var(--text-dim)" strokeWidth={1.5} />
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', maxWidth: 300 }}>
+          No income data for this month. Add income transactions or set a monthly income in Settings.
+        </p>
+      </div>
+    )
   }
 
-  function removeLane(id: string) {
-    const next = customLanes.filter(l => l.id !== id)
-    setCustomLanes(next)
-    saveCustomLanes(next)
-  }
-
-  // Compute totals for flow summary
-  const incomeLaneTxs = txForLane(defaultLanes[0], state.transactions, month, billCategoryIds, savingsCategoryIds)
-  const billsLaneTxs  = txForLane(defaultLanes[1], state.transactions, month, billCategoryIds, savingsCategoryIds)
-  const savLaneTxs    = txForLane(defaultLanes[2], state.transactions, month, billCategoryIds, savingsCategoryIds)
-  const discLaneTxs   = txForLane(defaultLanes[3], state.transactions, month, billCategoryIds, savingsCategoryIds)
-
-  // Format month label
-  const [y, m] = month.split('-').map(Number)
-  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const { col1, col2, col3, col4Groups, incomeSources, allocs, ribbons, svgH, totalIncome } = sankey
 
   return (
-    <div className="fade-in" style={{ maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-
+    <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px', marginBottom: 4 }}>
-            Flow
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            {monthLabel} · money movement across lanes
-          </p>
-        </div>
-        <Button onClick={() => setShowCreate(true)} style={{ gap: 6 }}>
-          <Plus size={14} /> Add lane
-        </Button>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{
+          fontFamily: '"Fraunces", ui-serif, Georgia, serif',
+          fontSize: 28, fontWeight: 700, color: 'var(--text)',
+          letterSpacing: '-0.03em', lineHeight: 1.1, margin: 0,
+        }}>Flow</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+          Where your money comes from — and where it goes.
+        </p>
       </div>
 
-      {/* Flow summary */}
-      <FlowSummary
-        incomeTotal={laneTotal(incomeLaneTxs)}
-        billsTotal={laneTotal(billsLaneTxs)}
-        savingsTotal={laneTotal(savLaneTxs)}
-        discTotal={laneTotal(discLaneTxs)}
-        sym={sym}
-      />
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 18, marginBottom: 24, flexWrap: 'wrap' }}>
+        {allocs.map(a => (
+          <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: a.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
+              {a.label} · {fmtAmt(a.total, sym)} ({pct(a.total, totalIncome)})
+            </span>
+          </div>
+        ))}
+      </div>
 
-      {/* Swimlanes */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-      >
-        {allLanes.map(lane => {
-          const lTxs = txForLane(lane, state.transactions, month, billCategoryIds, savingsCategoryIds)
-          return (
-            <LaneRow
-              key={lane.id}
-              lane={lane}
-              txs={lTxs}
-              cats={state.categories}
-              sym={sym}
-              month={month}
-              weeks={weeks}
-              onRemove={lane.isDefault ? undefined : () => removeLane(lane.id)}
+      {/* Sankey SVG */}
+      <div style={{ overflowX: 'auto' }}>
+        <svg viewBox={`0 0 ${SVG_W} ${svgH}`} style={{ width: '100%', minWidth: 680, height: 'auto', display: 'block' }}>
+
+          {/* Column header labels */}
+          {(['SOURCES', 'INCOME', 'GROUPS', 'CATEGORIES'] as const).map((label, ci) => (
+            <text key={label} x={COL_X[ci] + NODE_W / 2} y={PAD_TOP - 14}
+              textAnchor="middle" fill="var(--text-dim)"
+              fontSize={8} fontFamily="Inter, sans-serif" letterSpacing={1} fontWeight={600}>
+              {label}
+            </text>
+          ))}
+
+          {/* Ribbons (behind nodes) */}
+          {ribbons.map(r => (
+            <path
+              key={r.id}
+              d={r.path}
+              fill={r.color}
+              fillOpacity={hovered === r.id ? 0.68 : r.opacity}
+              style={{ cursor: 'crosshair', transition: 'fill-opacity 0.15s ease' }}
+              onMouseEnter={e => { setHovered(r.id); setTooltip({ x: e.clientX, y: e.clientY, label: r.label, value: r.value }) }}
+              onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+              onMouseLeave={() => { setHovered(null); setTooltip(null) }}
             />
-          )
-        })}
-      </motion.div>
+          ))}
 
-      {/* Legend / tip */}
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', textAlign: 'center', marginTop: 28 }}>
-        Hover any transaction pill to see details · Time flows left → right across {monthLabel}
-      </p>
+          {/* Column 1: Income source nodes */}
+          {col1.map((pos, i) => {
+            const src = incomeSources[i]
+            const showSub = pos.h >= 28
+            return (
+              <g key={`src-${i}`}>
+                <rect x={COL_X[0]} y={pos.y} width={NODE_W} height={pos.h} fill={INCOME_COLOR} rx={3} />
+                <text x={COL_X[0] - 10} y={pos.y + pos.h / 2 - (showSub ? 6 : 0)}
+                  textAnchor="end" dominantBaseline="middle"
+                  fill="var(--text)" fontSize={11} fontFamily="Inter, sans-serif" fontWeight={500}>
+                  {src.icon} {src.name}
+                </text>
+                {showSub && (
+                  <text x={COL_X[0] - 10} y={pos.y + pos.h / 2 + 8}
+                    textAnchor="end" dominantBaseline="middle"
+                    fill="var(--text-muted)" fontSize={9} fontFamily="Inter, sans-serif">
+                    {fmtAmt(src.amount, sym)} · {pct(src.amount, totalIncome)}
+                  </text>
+                )}
+              </g>
+            )
+          })}
 
-      {/* Create lane modal */}
+          {/* Column 2: Income total node */}
+          {col2.map(pos => (
+            <g key="income-node">
+              <rect x={COL_X[1]} y={pos.y} width={NODE_W} height={pos.h} fill={INCOME_COLOR} rx={3} />
+              <text x={COL_X[1] + NODE_W / 2} y={pos.y + pos.h + 14}
+                textAnchor="middle" dominantBaseline="hanging"
+                fill="var(--text)" fontSize={11} fontFamily="Inter, sans-serif" fontWeight={600}>
+                {fmtAmt(totalIncome, sym)}
+              </text>
+              <text x={COL_X[1] + NODE_W / 2} y={pos.y + pos.h + 28}
+                textAnchor="middle" dominantBaseline="hanging"
+                fill="var(--text-muted)" fontSize={9} fontFamily="Inter, sans-serif">
+                total income
+              </text>
+            </g>
+          ))}
+
+          {/* Column 3: Allocation group nodes */}
+          {col3.map((pos, i) => {
+            const alloc = allocs[i]
+            const showSub = pos.h >= 28
+            return (
+              <g key={`alloc-${alloc.key}`}>
+                <rect x={COL_X[2]} y={pos.y} width={NODE_W} height={pos.h} fill={alloc.color} rx={3} />
+                <text x={COL_X[2] + NODE_W + 10} y={pos.y + pos.h / 2 - (showSub ? 6 : 0)}
+                  textAnchor="start" dominantBaseline="middle"
+                  fill="var(--text)" fontSize={11} fontFamily="Inter, sans-serif" fontWeight={600}>
+                  {alloc.label}
+                </text>
+                {showSub && (
+                  <text x={COL_X[2] + NODE_W + 10} y={pos.y + pos.h / 2 + 8}
+                    textAnchor="start" dominantBaseline="middle"
+                    fill="var(--text-muted)" fontSize={9} fontFamily="Inter, sans-serif">
+                    {fmtAmt(alloc.total, sym)} · {pct(alloc.total, totalIncome)}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+
+          {/* Column 4: Category nodes */}
+          {allocs.map((alloc, i) => {
+            if (alloc.cats.length === 0) {
+              const pos = col3[i]
+              return (
+                <g key={`uncat-${alloc.key}`}>
+                  <rect x={COL_X[3]} y={pos.y} width={NODE_W} height={pos.h} fill={alloc.color} rx={3} />
+                  <text x={COL_X[3] + NODE_W + 10} y={pos.y + pos.h / 2}
+                    textAnchor="start" dominantBaseline="middle"
+                    fill="var(--text-muted)" fontSize={10} fontFamily="Inter, sans-serif">
+                    {alloc.label}
+                  </text>
+                </g>
+              )
+            }
+            return alloc.cats.map((cat, j) => {
+              const pos = col4Groups[i]?.items[j]
+              if (!pos) return null
+              const showSub = pos.h >= 26
+              return (
+                <g key={`cat-${cat.id}`}>
+                  <rect x={COL_X[3]} y={pos.y} width={NODE_W} height={pos.h} fill={alloc.color} rx={3} />
+                  <text x={COL_X[3] + NODE_W + 10} y={pos.y + pos.h / 2 - (showSub ? 5 : 0)}
+                    textAnchor="start" dominantBaseline="middle"
+                    fill="var(--text)" fontSize={10} fontFamily="Inter, sans-serif">
+                    {cat.icon} {cat.name.length > 18 ? cat.name.slice(0, 16) + '…' : cat.name}
+                  </text>
+                  {showSub && (
+                    <text x={COL_X[3] + NODE_W + 10} y={pos.y + pos.h / 2 + 7}
+                      textAnchor="start" dominantBaseline="middle"
+                      fill="var(--text-muted)" fontSize={8.5} fontFamily="Inter, sans-serif">
+                      {fmtAmt(cat.amount, sym)}
+                    </text>
+                  )}
+                </g>
+              )
+            })
+          })}
+        </svg>
+      </div>
+
+      {/* Hover tooltip */}
       <AnimatePresence>
-        {showCreate && (
-          <CreateLaneModal
-            categories={state.categories}
-            onSave={addLane}
-            onClose={() => setShowCreate(false)}
-          />
+        {tooltip && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.92 }}
+            transition={transitions.fast}
+            style={{
+              position: 'fixed',
+              left: tooltip.x + 14,
+              top: tooltip.y - 20,
+              pointerEvents: 'none',
+              zIndex: 9999,
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '8px 12px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            }}
+          >
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{tooltip.label}</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+              {sym}{tooltip.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: 36 }}>
+        <div className="card-surface" style={{ padding: '16px 18px' }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Total Income</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em', margin: '4px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+            {sym}{totalIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </p>
+        </div>
+        {allocs.filter(a => a.key !== 'unspent').map(a => (
+          <div key={a.key} className="card-surface" style={{ padding: '16px 18px', borderLeft: `3px solid ${a.color}` }}>
+            <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>{a.label}</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em', margin: '4px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+              {sym}{a.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '2px 0 0' }}>{pct(a.total, totalIncome)} of income</p>
+          </div>
+        ))}
+        {data.unspent > 0 && (
+          <div className="card-surface" style={{ padding: '16px 18px', borderLeft: `3px solid ${UNSPENT_COLOR}` }}>
+            <p style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Net Saved</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.03em', margin: '4px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+              {sym}{data.unspent.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '2px 0 0' }}>{pct(data.unspent, totalIncome)} of income</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
