@@ -15,29 +15,30 @@ html, body {
    Light, soft palette. All components use these vars.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Surfaces — light, layered */
-  --bg:            #F2F4F8;   /* page background — soft off-white blue-gray */
-  --sidebar:       #FFFFFF;   /* sidebar — white */
-  --surface:       #FFFFFF;   /* cards, panels — white with shadow */
-  --surface-hover: #F7F9FC;   /* card hover state */
-  --elevated:      #FFFFFF;   /* modals, popovers */
-  --border:        rgba(0,0,0,0.08);
+  /* Surfaces — soft middle ground, not stark white or harsh dark */
+  --bg:            #ECEEF3;   /* page background — muted cool-gray, not white */
+  --sidebar:       #F5F6F9;   /* sidebar — off-white, subtly distinct from bg */
+  --surface:       #FFFFFF;   /* cards — white lifts gently off the gray bg */
+  --surface-hover: #F7F8FB;   /* card hover */
+  --elevated:      #FFFFFF;   /* modals */
+  --border:        rgba(0,0,0,0.06);  /* hairline only — barely there */
 
   /* Accent & status */
-  --accent:        #0AB87A;   /* green — works well on light */
+  --accent:        #0AB87A;
   --accent-dim:    rgba(10,184,122,0.10);
   --accent-hover:  #09a46d;
-  --danger:        #DC2626;
-  --danger-dim:    rgba(220,38,38,0.08);
+  --danger:        #DC3545;
+  --danger-dim:    rgba(220,53,69,0.09);
   --warning:       #D97706;
-  --warning-dim:   rgba(217,119,6,0.08);
+  --warning-dim:   rgba(217,119,6,0.09);
   --info:          #2563EB;
-  --info-dim:      rgba(37,99,235,0.08);
+  --info-dim:      rgba(37,99,235,0.09);
 
-  /* Typography — dark on light */
-  --text:          #1A1F36;   /* primary text — deep navy */
-  --text-muted:    #8A94A6;   /* labels, helper text */
-  --text-dim:      #C0C8D8;   /* very faint — decorative only */
+  /* Typography — dark gray, not pure black */
+  --text:          #374151;   /* body text — Tailwind gray-700, readable without harshness */
+  --text-muted:    #6B7280;   /* labels — Tailwind gray-500 */
+  --text-dim:      #D1D5DB;   /* decorative hairlines — Tailwind gray-300 */
+  --text-strong:   #111827;   /* hero numbers only — Tailwind gray-900 */
 
   /* Spacing scale */
   --r-sm:  8px;

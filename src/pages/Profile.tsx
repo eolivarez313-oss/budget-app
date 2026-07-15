@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Bell, Moon, Trash2, ChevronRight } from 'lucide-react'
+import { User, Bell, Moon, Trash2, ChevronRight, Check } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -190,9 +190,46 @@ export function Profile() {
         ))}
       </Section>
 
+      {/* Household: "I am" contributor picker */}
+      {workspaces.some(w => w.id === activeWorkspaceId && w.type === 'household' && w.contributors.length > 0) && (() => {
+        const hw = workspaces.find(w => w.id === activeWorkspaceId)!
+        return (
+          <Section title="I am">
+            <div style={{ padding: '8px 10px' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 8px 10px', lineHeight: 1.5 }}>
+                Select which contributor is you — the home screen greeting will use this name.
+              </p>
+              {hw.contributors.map((c, i) => {
+                const isMe = profile.myContributorId === c.id
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => updateProfile({ myContributorId: isMe ? undefined : c.id })}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 8px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: isMe ? 'var(--accent-dim)' : 'transparent',
+                      marginBottom: i < hw.contributors.length - 1 ? 2 : 0,
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = '#F3F4F6' }}
+                    onMouseLeave={e => { if (!isMe) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: isMe ? 600 : 400, color: isMe ? ACCENT : 'var(--text)' }}>
+                      {c.name}
+                    </span>
+                    {isMe && <Check size={14} color={ACCENT} />}
+                  </button>
+                )
+              })}
+            </div>
+          </Section>
+        )
+      })()}
+
       {/* Preferences */}
       <Section title="Preferences">
-        <Row icon={Moon} label="Appearance" value="Dark mode" action="Default" />
+        <Row icon={Moon} label="Appearance" value="Light mode" action="Default" />
         <Row icon={Bell} label="Notifications" value="Coming soon" />
       </Section>
 

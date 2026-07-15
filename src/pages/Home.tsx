@@ -122,6 +122,16 @@ export function Home() {
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId)
 
+  // Resolve whose name to show: for household workspaces use the contributor marked as "me",
+  // otherwise fall back to the profile name (personal budget or no contributor selected).
+  const greetingName = (() => {
+    if (activeWs?.type === 'household' && profile.myContributorId) {
+      const me = activeWs.contributors.find(c => c.id === profile.myContributorId)
+      if (me) return me.name
+    }
+    return profile.name
+  })()
+
   const noName = !profile.name
 
   return (
@@ -146,7 +156,7 @@ export function Home() {
             </div>
           )}
           <h1 style={{ fontSize: 34, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
-            {greeting(profile.name)}
+            {greeting(greetingName)}
           </h1>
           <p style={{ fontSize: 16, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
             {dailySubline()}

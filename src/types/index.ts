@@ -110,6 +110,7 @@ export interface AppState {
 export interface UserProfile {
   name: string
   avatarUrl?: string
+  myContributorId?: string   // which Contributor in the active household workspace is "me"
 }
 
 export type PayFrequency = 'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'

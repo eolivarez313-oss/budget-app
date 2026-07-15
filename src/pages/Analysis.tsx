@@ -359,40 +359,56 @@ export function Analysis() {
             </Card>
           ) : (
             categoryRows.map(r => (
-              <Card key={r.catId} style={{ padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 8, background: r.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
-                      {r.icon}
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{r.name}</p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {formatCurrency(r.spent, sym)} of {formatCurrency(r.budgeted, sym)}
-                        {viewMode === 'range' && <span style={{ color: 'var(--text-dim)' }}> ({weekCount.toFixed(1)} wks)</span>}
-                      </p>
+              <Card key={r.catId} style={{ padding: '22px 24px' }}>
+                {/* Top row: icon + name | amounts | badge */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+                  {/* Icon */}
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: r.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, marginTop: 1 }}>
+                    {r.icon}
+                  </div>
+                  {/* Name + amounts */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>{r.name}</p>
+                    <div style={{ display: 'flex', gap: 20 }}>
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Budgeted</p>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{formatCurrency(r.budgeted, sym)}{viewMode === 'range' && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> ×{weekCount.toFixed(1)}w</span>}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Actual</p>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: r.over ? RED : 'var(--text)' }}>{formatCurrency(r.spent, sym)}</p>
+                      </div>
                     </div>
                   </div>
-                  <span style={{
-                    fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
-                    background: r.over ? '#fee2e2' : 'rgba(6,198,138,0.1)',
-                    color: r.over ? RED : GREEN,
-                  }}>
-                    {r.over ? '▲' : '▼'} {formatCurrency(Math.abs(r.diff), sym)}
-                  </span>
-                </div>
-                <div style={{ width: '100%', background: 'var(--surface)', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                  {/* Over/under badge */}
                   <div style={{
-                    height: 5, borderRadius: 99,
+                    flexShrink: 0, padding: '6px 12px', borderRadius: 8,
+                    background: r.over ? 'var(--danger-dim)' : 'var(--accent-dim)',
+                    border: `1px solid ${r.over ? 'rgba(220,53,69,0.18)' : 'rgba(10,184,122,0.18)'}`,
+                    textAlign: 'center',
+                  }}>
+                    <p style={{ fontSize: 10, fontWeight: 600, color: r.over ? RED : GREEN, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
+                      {r.over ? 'Over' : 'Under'}
+                    </p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: r.over ? RED : GREEN }}>
+                      {formatCurrency(Math.abs(r.diff), sym)}
+                    </p>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div style={{ width: '100%', background: '#EEF0F4', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{
+                    height: 6, borderRadius: 99,
                     width: `${Math.min(100, r.pct)}%`,
                     background: r.over ? RED : r.pct > 80 ? AMBER : GREEN,
                     transition: 'width 0.4s ease',
                   }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
-                  <span>{Math.round(r.pct)}% used</span>
+                {/* Footer */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>{Math.round(r.pct)}% of budget used</span>
                   <span style={{ color: r.over ? RED : GREEN, fontWeight: 500 }}>
-                    {r.over ? `Over by ${formatCurrency(-r.diff, sym)}` : `${formatCurrency(r.diff, sym)} remaining`}
+                    {r.over ? `${formatCurrency(-r.diff, sym)} over budget` : `${formatCurrency(r.diff, sym)} left`}
                   </span>
                 </div>
               </Card>
