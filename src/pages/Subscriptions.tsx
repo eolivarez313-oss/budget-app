@@ -47,7 +47,7 @@ function SubModal({ open, onClose, initial }: { open: boolean; onClose: () => vo
     <Modal open={open} onClose={onClose} title={initial ? 'Edit Bill' : 'Add Bill'} size="sm">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {err && (
-          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+          <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, color: 'var(--danger)' }}>
             {err}
           </div>
         )}
@@ -96,7 +96,7 @@ function monthlyAmount(sub: Subscription): number {
 const STATUS_CFG = {
   active: { color: GREEN, bg: 'rgba(6,198,138,0.1)', icon: RefreshCw, label: 'Active' },
   negotiating: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: AlertCircle, label: 'Negotiating' },
-  cancelled: { color: '#8A94A6', bg: '#EBEBEB', icon: XCircle, label: 'Cancelled' },
+  cancelled: { color: 'var(--text-muted)', bg: '#EBEBEB', icon: XCircle, label: 'Cancelled' },
 }
 
 export function Subscriptions() {
@@ -128,16 +128,16 @@ export function Subscriptions() {
       <Card key={sub.id} style={{ padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{cat?.icon || '📦'}</div>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{cat?.icon || '📦'}</div>
             <div>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: NAVY }}>{sub.name}</p>
-              <p style={{ fontSize: 11, color: '#8A94A6' }}>{cat?.name} · {sub.frequency}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{sub.name}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cat?.name} · {sub.frequency}</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: 13.5, fontWeight: 600, color: NAVY }}>{formatCurrency(sub.amount, sym)}/{sub.frequency === 'monthly' ? 'mo' : sub.frequency === 'yearly' ? 'yr' : 'wk'}</p>
-              {sub.frequency !== 'monthly' && <p style={{ fontSize: 11, color: '#8A94A6' }}>{formatCurrency(monthlyAmount(sub), sym)}/mo</p>}
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{formatCurrency(sub.amount, sym)}/{sub.frequency === 'monthly' ? 'mo' : sub.frequency === 'yearly' ? 'yr' : 'wk'}</p>
+              {sub.frequency !== 'monthly' && <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatCurrency(monthlyAmount(sub), sym)}/mo</p>}
             </div>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500, color: cfg.color, background: cfg.bg, padding: '3px 10px', borderRadius: 99 }}>
               <Icon size={10} /> {cfg.label}
@@ -156,12 +156,12 @@ export function Subscriptions() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Bills</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{active.length} active bill{active.length !== 1 ? 's' : ''}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Bills</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{active.length} active bill{active.length !== 1 ? 's' : ''}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: '#8A94A6', fontWeight: 500 }}>Sort by:</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>Sort by:</span>
             {(['none', 'asc', 'desc'] as const).map((opt) => (
               <button key={opt} onClick={() => setSortOrder(opt)}
                 style={{
@@ -184,12 +184,12 @@ export function Subscriptions() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
-          { label: 'Monthly Total', value: formatCurrency(totalMonthly, sym), color: NAVY },
+          { label: 'Monthly Total', value: formatCurrency(totalMonthly, sym), color: 'var(--text)' },
           { label: 'Annual Total', value: formatCurrency(totalYearly, sym), color: '#f59e0b' },
           { label: 'Active Count', value: String(active.length), color: '#4A6CF7' },
         ].map(s => (
           <Card key={s.label} style={{ padding: '18px 20px', textAlign: 'center' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
             <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</p>
           </Card>
         ))}
@@ -209,7 +209,7 @@ export function Subscriptions() {
       )}
       {cancelled.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cancelled</h2>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cancelled</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{renderSubs(cancelled)}</div>
         </div>
       )}
@@ -217,7 +217,7 @@ export function Subscriptions() {
       {state.subscriptions.length === 0 && (
         <Card style={{ padding: '48px', textAlign: 'center' }}>
           <RefreshCw size={32} style={{ color: '#E4E4E4', margin: '0 auto 12px' }} />
-          <p style={{ color: '#8A94A6', marginBottom: 16, fontSize: 14 }}>Track your recurring bills here</p>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: 14 }}>Track your recurring bills here</p>
           <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Bill</Button>
         </Card>
       )}

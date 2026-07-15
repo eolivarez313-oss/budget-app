@@ -76,14 +76,14 @@ function GoalModal({ open, onClose, initial }: { open: boolean; onClose: () => v
     <Modal open={open} onClose={onClose} title={initial ? 'Edit Goal' : 'New Goal'}>
       {step === 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13, color: '#8A94A6' }}>Choose a goal template to get started:</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Choose a goal template to get started:</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {TEMPLATES.map(t => (
               <button key={t.key} onClick={() => selectTemplate(t)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '12px',
-                  borderRadius: 10, border: '1px solid #E4E4E4', background: '#FAFAFA',
-                  cursor: 'pointer', fontSize: 13, color: NAVY, textAlign: 'left',
+                  borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)',
+                  cursor: 'pointer', fontSize: 13, color: 'var(--text)', textAlign: 'left',
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = GREEN; (e.currentTarget as HTMLElement).style.background = 'rgba(6,198,138,0.05)' }}
@@ -94,7 +94,7 @@ function GoalModal({ open, onClose, initial }: { open: boolean; onClose: () => v
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+          {err && <p style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-dim)', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
           <Field label="Goal Name">
             <Input placeholder="e.g. Emergency Fund" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </Field>
@@ -182,8 +182,8 @@ export function Goals() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Goals</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{state.goals.length} active goal{state.goals.length !== 1 ? 's' : ''}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Goals</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{state.goals.length} active goal{state.goals.length !== 1 ? 's' : ''}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}><Plus size={15} /> New Goal</Button>
       </div>
@@ -197,7 +197,7 @@ export function Goals() {
           return (
             <Card key={goal.id} style={{ padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{goal.name}</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{goal.name}</h3>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <IconButton size="sm" onClick={() => setEditing(goal)}><Edit2 size={13} /></IconButton>
                   <IconButton size="sm" variant="danger" onClick={() => setDeletingGoal(goal)}><Trash2 size={13} /></IconButton>
@@ -212,24 +212,24 @@ export function Goals() {
                     </RadialBarChart>
                   </ResponsiveContainer>
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{Math.round(pct)}%</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{Math.round(pct)}%</span>
                   </div>
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 22, fontWeight: 700, color: goal.color }}>{pct.toFixed(0)}%</p>
-                  <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>{formatCurrency(goal.currentAmount, sym)} saved</p>
-                  <p style={{ fontSize: 12, color: '#8A94A6' }}>{formatCurrency(goal.targetAmount, sym)} goal</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{formatCurrency(goal.currentAmount, sym)} saved</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatCurrency(goal.targetAmount, sym)} goal</p>
                 </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#8A94A6' }}>Remaining</span>
-                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(Math.max(0, remaining), sym)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Remaining</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatCurrency(Math.max(0, remaining), sym)}</span>
                 </div>
                 {days !== null && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#8A94A6' }}>Days left</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Days left</span>
                     <span style={{ color: days < 30 ? '#f59e0b' : NAVY, fontWeight: 500 }}>{days > 0 ? `${days} days` : 'Past due'}</span>
                   </div>
                 )}
@@ -252,7 +252,7 @@ export function Goals() {
         {state.goals.length === 0 && (
           <div style={{ gridColumn: 'span 3' }}>
             <Card style={{ padding: '48px', textAlign: 'center' }}>
-              <p style={{ color: '#8A94A6', marginBottom: 16, fontSize: 14 }}>No goals yet. Set your first financial goal!</p>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: 14 }}>No goals yet. Set your first financial goal!</p>
               <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Create Goal</Button>
             </Card>
           </div>

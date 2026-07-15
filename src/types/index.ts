@@ -36,7 +36,7 @@ export interface Category {
   type: 'income' | 'expense'
   isDefault?: boolean
   taxRelated?: boolean
-  keywords?: string[]  // custom keywords for merchant matching (comma-separated in UI)
+  keywords?: string[]
 }
 
 export interface Budget {
@@ -92,6 +92,7 @@ export interface AppSettings {
   paycheckAmount?: number
 }
 
+// Legacy single-workspace state (kept for backward compat / AppState within a Workspace)
 export interface AppState {
   accounts: Account[]
   transactions: Transaction[]
@@ -101,5 +102,35 @@ export interface AppState {
   netWorthHistory: NetWorthEntry[]
   subscriptions: Subscription[]
   settings: AppSettings
-  merchantRules: Record<string, string> // merchantKey → categoryId
+  merchantRules: Record<string, string>
+}
+
+// ── Multi-workspace additions ────────────────────────────────────────────────
+
+export interface UserProfile {
+  name: string
+  avatarUrl?: string
+}
+
+export type PayFrequency = 'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'
+
+export interface Contributor {
+  id: string
+  name: string
+  incomeAmount: number
+  payFrequency: PayFrequency
+}
+
+export interface Workspace extends AppState {
+  id: string
+  name: string
+  type: 'personal' | 'household'
+  contributors: Contributor[]
+  createdAt: string
+}
+
+export interface RootState {
+  workspaces: Workspace[]
+  activeWorkspaceId: string
+  profile: UserProfile
 }

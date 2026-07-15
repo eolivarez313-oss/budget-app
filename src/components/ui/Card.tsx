@@ -9,27 +9,23 @@ interface CardProps {
   hover?: boolean
 }
 
-export function Card({ children, className = '', style, onClick, hover }: CardProps) {
-  const base: CSSProperties = {
-    background: '#FAFAFA',
-    border: '1px solid #E4E4E4',
-    borderRadius: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-    cursor: hover ? 'pointer' : undefined,
-    ...style,
-  }
+const base: CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 16,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+}
 
-  if (hover) {
+export function Card({ children, className = '', style, onClick, hover }: CardProps) {
+  const merged = { ...base, cursor: hover || onClick ? 'pointer' : undefined, ...style }
+
+  if (hover || onClick) {
     return (
       <motion.div
         className={className}
         onClick={onClick}
-        style={base}
-        whileHover={{
-          boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
-          y: -2,
-          borderColor: '#D0D0D0',
-        } as any}
+        style={merged}
+        whileHover={{ background: 'var(--surface-hover)', y: -2 } as any}
         transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
       >
         {children}
@@ -38,11 +34,7 @@ export function Card({ children, className = '', style, onClick, hover }: CardPr
   }
 
   return (
-    <div
-      onClick={onClick}
-      className={className}
-      style={base}
-    >
+    <div className={className} style={merged}>
       {children}
     </div>
   )

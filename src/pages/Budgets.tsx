@@ -83,13 +83,13 @@ function AddCategoryModal({ open, onClose, weeklyPaycheck, weeklyBills, totalAll
     <Modal open={open} onClose={onClose} title="Add Budget Category" size="sm">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {err && (
-          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+          <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, color: 'var(--danger)' }}>
             {err}
           </div>
         )}
 
         {availableCategories.length === 0 ? (
-          <p style={{ fontSize: 13, color: '#8A94A6', textAlign: 'center', padding: '20px 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>
             All expense categories have been budgeted. Add new categories in Transactions.
           </p>
         ) : (
@@ -103,7 +103,7 @@ function AddCategoryModal({ open, onClose, weeklyPaycheck, weeklyBills, totalAll
 
             <Field label="Amount per paycheck">
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#9CA3AF', pointerEvents: 'none' }}>{sym}</span>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted)', pointerEvents: 'none' }}>{sym}</span>
                 <Input
                   type="number"
                   placeholder="0"
@@ -117,7 +117,7 @@ function AddCategoryModal({ open, onClose, weeklyPaycheck, weeklyBills, totalAll
               </div>
             </Field>
 
-            <p style={{ fontSize: 12, color: '#8A94A6' }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {remaining > 0
                 ? `${formatCurrency(remaining, sym)} of your weekly paycheck is still unallocated.`
                 : 'Your weekly paycheck is fully allocated.'}
@@ -227,13 +227,13 @@ export function Budgets() {
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Allocate your {freqLabel.toLowerCase()} paycheck across categories</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Allocate your {freqLabel.toLowerCase()} paycheck across categories</p>
         </div>
         <Card style={{ padding: '60px 24px', textAlign: 'center' }}>
           <p style={{ fontSize: 40, marginBottom: 16 }}>💰</p>
-          <p style={{ fontSize: 16, fontWeight: 600, color: NAVY, marginBottom: 8 }}>Set your paycheck amount first</p>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
+          <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Set your paycheck amount first</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
             Go to Settings to enter your paycheck amount and pay frequency, then come back to build your weekly budget.
           </p>
           <Button variant="secondary" onClick={() => { window.location.href = '/settings' }}>Go to Settings</Button>
@@ -254,17 +254,17 @@ export function Budgets() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Click a slice to edit your {freqLabel} allocation</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Paycheck Budget</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Click a slice to edit your {freqLabel} allocation</p>
         </div>
         <Button onClick={() => setShowAddModal(true)}><Plus size={15} /> Add Category</Button>
       </div>
 
       {/* Bills overage warning */}
       {billsOverPaycheck && (
-        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <AlertTriangle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
-          <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AlertTriangle size={16} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          <p style={{ fontSize: 13, color: 'var(--danger)', margin: 0 }}>
             Your weekly bills ({formatCurrency(weeklyBills, sym)}) exceed your weekly paycheck ({formatCurrency(weeklyPaycheck, sym)}). Review your bills or update your paycheck in Settings.
           </p>
         </div>
@@ -273,7 +273,7 @@ export function Budgets() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: `${freqLabel} Paycheck`, value: formatCurrency(weeklyPaycheck, sym), color: NAVY, sub: undefined },
+          { label: `${freqLabel} Paycheck`, value: formatCurrency(weeklyPaycheck, sym), color: 'var(--text)', sub: undefined },
           { label: `${freqLabel} Bills`, value: formatCurrency(weeklyBills, sym), color: BILLS_COLOR, sub: undefined },
           { label: 'Allocated', value: formatCurrency(totalAllocated, sym), color: '#4A6CF7', sub: undefined },
           {
@@ -284,7 +284,7 @@ export function Budgets() {
           },
         ].map(s => (
           <Card key={s.label} style={{ padding: '16px 18px', textAlign: 'center' }}>
-            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
             <p style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</p>
             {s.sub && <p style={{ fontSize: 11, color: s.color, marginTop: 4 }}>{s.sub}</p>}
           </Card>
@@ -299,15 +299,15 @@ export function Budgets() {
           {slices.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '52px 0' }}>
               <p style={{ fontSize: 36, marginBottom: 12 }}>🥧</p>
-              <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 6 }}>No categories yet</p>
-              <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 20 }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>No categories yet</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
                 Add budget categories to start splitting your {formatCurrency(weeklyPaycheck, sym)}/paycheck.
               </p>
               <Button onClick={() => setShowAddModal(true)}><Plus size={14} /> Add Category</Button>
             </div>
           ) : (
             <>
-              <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center', marginBottom: 4 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center', marginBottom: 4 }}>
                 {freqLabel} Paycheck — {formatCurrency(weeklyPaycheck, sym)}
               </p>
 
@@ -346,17 +346,17 @@ export function Budgets() {
                         const pct = totalPie > 0 ? ((d.value / totalPie) * 100).toFixed(1) : '0'
                         return (
                           <div style={{
-                            background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8,
+                            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
                             padding: '10px 14px', fontSize: 12,
                             boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                           }}>
-                            <p style={{ fontWeight: 600, color: NAVY, marginBottom: 4 }}>
+                            <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
                               {d.icon ? `${d.icon} ` : ''}{d.name}
                             </p>
                             <p style={{ color: d.color, fontWeight: 600, marginBottom: 2 }}>
                               {formatCurrency(d.value, sym)}/paycheck
                             </p>
-                            <p style={{ color: '#8A94A6' }}>{pct}% of paycheck</p>
+                            <p style={{ color: 'var(--text-muted)' }}>{pct}% of paycheck</p>
                           </div>
                         )
                       }}
@@ -373,18 +373,18 @@ export function Budgets() {
                   <div style={{ textAlign: 'center' }}>
                     {selectedSlice && !selectedSlice.isUnallocated ? (
                       <>
-                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>{selectedSlice.icon || ''} {selectedSlice.name}</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{selectedSlice.icon || ''} {selectedSlice.name}</p>
                         <p style={{ fontSize: 22, fontWeight: 700, color: selectedSlice.color }}>
                           {formatCurrency(selectedSlice.value, sym)}
                         </p>
-                        <p style={{ fontSize: 11, color: '#8A94A6' }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                           {totalPie > 0 ? ((selectedSlice.value / totalPie) * 100).toFixed(0) : 0}% of check
                         </p>
                       </>
                     ) : (
                       <>
-                        <p style={{ fontSize: 11, color: '#8A94A6', marginBottom: 2 }}>per paycheck</p>
-                        <p style={{ fontSize: 22, fontWeight: 700, color: NAVY }}>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>per paycheck</p>
+                        <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
                           {formatCurrency(weeklyPaycheck, sym)}
                         </p>
                         <p style={{ fontSize: 11, color: fullyAllocated ? GREEN : '#8A94A6' }}>
@@ -416,8 +416,8 @@ export function Budgets() {
                       }}
                     >
                       <div style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                      <span style={{ color: '#6b7280' }}>{s.icon ? `${s.icon} ` : ''}{s.name}</span>
-                      <span style={{ color: NAVY, fontWeight: 600 }}>{pct}%</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{s.icon ? `${s.icon} ` : ''}{s.name}</span>
+                      <span style={{ color: 'var(--text)', fontWeight: 600 }}>{pct}%</span>
                     </button>
                   )
                 })}
@@ -441,7 +441,7 @@ export function Budgets() {
           {!selectedSlice ? (
             /* Default: remaining summary */
             <Card style={{ padding: '24px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
                 Left to budget from this paycheck
               </p>
               <p style={{
@@ -450,7 +450,7 @@ export function Budgets() {
               }}>
                 {formatCurrency(Math.abs(remaining), sym)}
               </p>
-              <p style={{ fontSize: 12, color: '#8A94A6', marginBottom: 20 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
                 {overAllocated
                   ? `Over-allocated by ${formatCurrency(-remaining, sym)}`
                   : fullyAllocated
@@ -459,31 +459,31 @@ export function Budgets() {
               </p>
 
               {overAllocated && (
-                <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>
+                <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--danger)', marginBottom: 16 }}>
                   Reduce a category allocation to fix the over-budget.
                 </div>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#8A94A6' }}>Paycheck</span>
-                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(weeklyPaycheck, sym)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Paycheck</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatCurrency(weeklyPaycheck, sym)}</span>
                 </div>
                 {weeklyBills > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: '#8A94A6' }}>Bills</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Bills</span>
                     <span style={{ color: BILLS_COLOR, fontWeight: 500 }}>− {formatCurrency(weeklyBills, sym)}</span>
                   </div>
                 )}
                 {totalAllocated > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: '#8A94A6' }}>Categories</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Categories</span>
                     <span style={{ color: '#4A6CF7', fontWeight: 500 }}>− {formatCurrency(totalAllocated, sym)}</span>
                   </div>
                 )}
                 <div style={{ height: 1, background: '#E4E4E4' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                  <span style={{ color: NAVY, fontWeight: 600 }}>Remaining</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 600 }}>Remaining</span>
                   <span style={{ color: overAllocated ? '#dc2626' : fullyAllocated ? GREEN : NAVY, fontWeight: 700 }}>
                     {formatCurrency(remaining, sym)}
                   </span>
@@ -491,13 +491,13 @@ export function Budgets() {
               </div>
 
               {weeklyBudgets.length === 0 && (
-                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 20, lineHeight: 1.6 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 20, lineHeight: 1.6 }}>
                   <strong style={{ color: GREEN }}>Tip:</strong> Bills are automatically pulled from your Bills list. Use "Add Category" to allocate the rest of your paycheck.
                 </p>
               )}
 
               {slices.length > 0 && !fullyAllocated && (
-                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 16 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 16 }}>
                   Click a slice to adjust its allocation.
                 </p>
               )}
@@ -512,11 +512,11 @@ export function Budgets() {
                     <Receipt size={17} style={{ color: BILLS_COLOR }} />
                   </div>
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Bills</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6' }}>Fixed weekly obligations</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Bills</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Fixed weekly obligations</p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                   <X size={16} />
                 </button>
               </div>
@@ -524,11 +524,11 @@ export function Budgets() {
               <p style={{ fontSize: 30, fontWeight: 700, color: BILLS_COLOR, marginBottom: 2 }}>
                 {formatCurrency(weeklyBills, sym)}
               </p>
-              <p style={{ fontSize: 12, color: '#8A94A6', marginBottom: 20 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
                 per paycheck · {weeklyPaycheck > 0 ? ((weeklyBills / weeklyPaycheck) * 100).toFixed(1) : 0}% of paycheck
               </p>
 
-              <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
                 Breakdown
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -536,10 +536,10 @@ export function Budgets() {
                   const cat = state.categories.find(c => c.id === sub.categoryId)
                   return (
                     <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{cat?.icon}</span> {sub.name}
                       </span>
-                      <span style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
                         {formatCurrency(subMonthlyAmount(sub) / ppm, sym)}/paycheck
                       </span>
                     </div>
@@ -547,7 +547,7 @@ export function Budgets() {
                 })}
               </div>
 
-              <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 16 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
                 Manage bills in the Bills section. This slice is calculated automatically.
               </p>
             </Card>
@@ -556,15 +556,15 @@ export function Budgets() {
             /* Unallocated panel */
             <Card style={{ padding: '24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Unallocated</p>
-                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Unallocated</p>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                   <X size={16} />
                 </button>
               </div>
-              <p style={{ fontSize: 30, fontWeight: 700, color: '#8A94A6', marginBottom: 8 }}>
+              <p style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>
                 {formatCurrency(remaining, sym)}
               </p>
-              <p style={{ fontSize: 13, color: '#8A94A6', lineHeight: 1.6 }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                 This portion of your paycheck hasn't been assigned to a category. Add categories to budget it out.
               </p>
               <Button style={{ marginTop: 20, width: '100%' }} onClick={() => { setSelectedId(null); setShowAddModal(true) }}>
@@ -585,20 +585,20 @@ export function Budgets() {
                     {selectedSlice.icon || '📦'}
                   </div>
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{selectedSlice.name}</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6' }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{selectedSlice.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {totalPie > 0 ? ((selectedSlice.value / totalPie) * 100).toFixed(1) : 0}% of this week's paycheck
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A94A6', padding: 4 }}>
+                <button onClick={() => setSelectedId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                   <X size={16} />
                 </button>
               </div>
 
               <Field label="Weekly allocation">
                 <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#9CA3AF', pointerEvents: 'none' }}>{sym}</span>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted)', pointerEvents: 'none' }}>{sym}</span>
                   <Input
                     type="number"
                     min="0"
@@ -613,7 +613,7 @@ export function Budgets() {
               </Field>
 
               {editErr && (
-                <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#dc2626', marginTop: 12 }}>
+                <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 12, color: 'var(--danger)', marginTop: 12 }}>
                   {editErr}
                 </div>
               )}
@@ -625,7 +625,7 @@ export function Budgets() {
 
               <button
                 onClick={handleDeleteBudget}
-                style={{ marginTop: 14, background: 'none', border: 'none', fontSize: 12, color: '#dc2626', cursor: 'pointer', padding: 0, display: 'block' }}
+                style={{ marginTop: 14, background: 'none', border: 'none', fontSize: 12, color: 'var(--danger)', cursor: 'pointer', padding: 0, display: 'block' }}
               >
                 Remove this category
               </button>

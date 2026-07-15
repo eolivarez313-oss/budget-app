@@ -13,11 +13,11 @@ import {
 import { TransactionModal } from './Transactions'
 
 const GREEN = '#06C68A'
-const NAVY = '#1A1F36'
+const NAVY = 'var(--text)'
 
 const tt = {
-  contentStyle: { background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8, fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
-  cursor: { fill: '#EBEBEB' },
+  contentStyle: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--text)', boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
+  cursor: { fill: 'rgba(255,255,255,0.06)' },
 }
 
 function StatCard({ title, value, sub, icon: Icon, positive }: { title: string; value: string; sub?: string; icon: any; positive?: boolean }) {
@@ -25,9 +25,9 @@ function StatCard({ title, value, sub, icon: Icon, positive }: { title: string; 
     <Card style={{ padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</p>
           <p style={{ fontSize: 26, fontWeight: 700, color: positive ? GREEN : NAVY, letterSpacing: '-0.5px' }}>{value}</p>
-          {sub && <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 4 }}>{sub}</p>}
+          {sub && <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</p>}
         </div>
         <div style={{ width: 36, height: 36, borderRadius: 8, background: positive ? 'rgba(6,198,138,0.1)' : '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon size={16} color={positive ? GREEN : '#8A94A6'} />
@@ -50,13 +50,13 @@ function HealthRing({ score }: { score: number }) {
             strokeDasharray={`${dash} ${100 - dash}`} strokeLinecap="round" />
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>{score}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{score}</span>
         </div>
       </div>
       <div>
-        <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Financial Health</p>
+        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Financial Health</p>
         <p style={{ fontSize: 18, fontWeight: 700, color }}>{label}</p>
-        <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>Score: {score} / 100</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Score: {score} / 100</p>
       </div>
     </Card>
   )
@@ -77,7 +77,7 @@ function Insight({ type, message }: { type: 'good' | 'warning' | 'info'; message
   )
 }
 
-const SEC = { fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 14 }
+const SEC = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 14 }
 
 export function Dashboard() {
   const { state, dispatch } = useStore()
@@ -187,8 +187,8 @@ export function Dashboard() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Dashboard</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Dashboard</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
@@ -223,7 +223,7 @@ export function Dashboard() {
               </div>
             ))}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0 0' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: NAVY }}>Remaining</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Remaining</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: income - expenses - savingsAllocated >= 0 ? GREEN : '#ef4444' }}>
                 {formatCurrency(Math.max(0, income - expenses - savingsAllocated), sym)}
               </span>
@@ -238,11 +238,11 @@ export function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
               <p style={SEC}>Paycheck Planner</p>
-              <p style={{ fontSize: 12, color: '#8A94A6', marginTop: -10 }}>{freqLabel[payFrequency]}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -10 }}>{freqLabel[payFrequency]}</p>
             </div>
             {/* Editable paycheck amount */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, color: '#8A94A6' }}>My paycheck:</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>My paycheck:</span>
               {paycheckEditing ? (
                 <form onSubmit={e => {
                   e.preventDefault()
@@ -256,20 +256,20 @@ export function Dashboard() {
                   } catch {}
                   setPaycheckEditing(false)
                 }} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 13, color: '#8A94A6' }}>{sym}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{sym}</span>
                   <input
                     type="number" min="0" step="any" placeholder="0"
                     value={paycheckInput}
                     onChange={e => setPaycheckInput(e.target.value)}
                     onBlur={e => e.currentTarget.form?.requestSubmit()}
-                    style={{ width: 90, padding: '4px 8px', fontSize: 14, fontWeight: 700, border: `2px solid ${GREEN}`, borderRadius: 6, outline: 'none', background: '#fff', color: NAVY, textAlign: 'right' }}
+                    style={{ width: 90, padding: '4px 8px', fontSize: 14, fontWeight: 700, border: `2px solid ${GREEN}`, borderRadius: 6, outline: 'none', background: '#fff', color: 'var(--text)', textAlign: 'right' }}
                     autoFocus
                   />
                 </form>
               ) : (
                 <button
                   onClick={() => { setPaycheckInput(paycheckAmount > 0 ? paycheckAmount.toFixed(2) : ''); setPaycheckEditing(true) }}
-                  style={{ fontSize: 14, fontWeight: 700, color: state.settings.paycheckAmount ? NAVY : '#8A94A6', background: state.settings.paycheckAmount ? '#F0F0F0' : 'transparent', border: `1px dashed ${state.settings.paycheckAmount ? '#C0C8D8' : '#C0C8D8'}`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', minWidth: 80, textAlign: 'right' }}
+                  style={{ fontSize: 14, fontWeight: 700, color: state.settings.paycheckAmount ? NAVY : '#8A94A6', background: state.settings.paycheckAmount ? '#F0F0F0' : 'transparent', border: `1px dashed ${state.settings.paycheckAmount ? 'var(--border)' : 'var(--border)'}`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', minWidth: 80, textAlign: 'right' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#EBEBEB' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = state.settings.paycheckAmount ? '#F0F0F0' : 'transparent' }}
                 >
@@ -281,7 +281,7 @@ export function Dashboard() {
 
           {/* Progress bar showing paycheck allocation */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ height: 10, borderRadius: 99, background: '#EBEBEB', overflow: 'hidden', display: 'flex' }}>
+            <div style={{ height: 10, borderRadius: 99, background: 'var(--surface)', overflow: 'hidden', display: 'flex' }}>
               {paycheckAmount > 0 && [
                 { value: paycheckBills, color: '#ef4444' },
                 { value: paycheckTxExpenses, color: '#f59e0b' },
@@ -331,7 +331,7 @@ export function Dashboard() {
                   } catch {}
                   setSavingsEditing(false)
                 }} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13, color: '#8A94A6' }}>{sym}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{sym}</span>
                   <input
                     ref={savingsRef}
                     type="number"
@@ -347,7 +347,7 @@ export function Dashboard() {
                     style={{
                       width: 80, padding: '4px 8px', fontSize: 14, fontWeight: 700,
                       border: `2px solid ${GREEN}`, borderRadius: 6, outline: 'none',
-                      background: '#fff', color: '#1A1F36', textAlign: 'right',
+                      background: '#fff', color: 'var(--text)', textAlign: 'right',
                     }}
                     autoFocus
                   />
@@ -361,7 +361,7 @@ export function Dashboard() {
                   style={{
                     fontSize: 14, fontWeight: 700, color: '#4A6CF7',
                     background: paycheckSavings > 0 ? 'rgba(74,108,247,0.08)' : '#F0F0F0',
-                    border: `1px dashed ${paycheckSavings > 0 ? '#4A6CF7' : '#C0C8D8'}`,
+                    border: `1px dashed ${paycheckSavings > 0 ? '#4A6CF7' : 'var(--border)'}`,
                     borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
                     transition: 'all 0.15s',
                     minWidth: 64, textAlign: 'right',
@@ -400,7 +400,7 @@ export function Dashboard() {
           </div>
 
           {paycheckRemaining < 0 && (
-            <div style={{ marginTop: 12, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
               ⚠️ Your bills and savings exceed your paycheck by {formatCurrency(Math.abs(paycheckRemaining), sym)}. Consider adjusting your budget in Settings.
             </div>
           )}
@@ -453,8 +453,8 @@ export function Dashboard() {
           <p style={SEC}>6-Month Cash Flow</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={cashFlow} barSize={18}>
-              <XAxis dataKey="label" tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+              <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
               <Tooltip {...tt} formatter={(v: any) => formatCurrency(v, sym)} />
               <Bar dataKey="income" name="Income" fill={GREEN} radius={[4, 4, 0, 0]} />
               <Bar dataKey="expenses" name="Expenses" fill="#E4E7EC" radius={[4, 4, 0, 0]} />
@@ -482,7 +482,7 @@ export function Dashboard() {
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#6b7280' }}>{d.name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d.name}</span>
                     </div>
                     <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{formatCurrency(d.value, sym)}</span>
                   </div>
@@ -505,8 +505,8 @@ export function Dashboard() {
                   <stop offset="95%" stopColor={GREEN} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#8A94A6', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
+              <XAxis dataKey="day" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
               <Tooltip {...tt} formatter={(v: any) => formatCurrency(v, sym)} />
               <Area type="monotone" dataKey="balance" stroke={GREEN} fill="url(#balGrad)" strokeWidth={2} name="Balance" />
             </AreaChart>
@@ -524,13 +524,13 @@ export function Dashboard() {
               return (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{cat?.icon}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{cat?.icon}</div>
                     <div>
-                      <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>{t.description}</p>
-                      <p style={{ fontSize: 11, color: '#8A94A6' }}>{cat?.name}</p>
+                      <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{t.description}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{cat?.name}</p>
                     </div>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>{formatCurrency(t.amount, sym)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{formatCurrency(t.amount, sym)}</span>
                 </div>
               )
             }) : <p style={{ fontSize: 13, color: '#9ca3af' }}>No recurring bills found.</p>}
@@ -553,12 +553,12 @@ export function Dashboard() {
                 borderBottom: i < Math.min(transactions.length, 8) - 1 ? '1px solid #f4f4f5' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
                     {cat?.icon || '💳'}
                   </div>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: NAVY }}>{t.description}</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>{acc?.name} · {formatShortDate(t.date)}</p>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{t.description}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{acc?.name} · {formatShortDate(t.date)}</p>
                   </div>
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: t.type === 'income' ? GREEN : NAVY }}>

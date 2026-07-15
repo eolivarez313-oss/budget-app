@@ -15,13 +15,7 @@ interface ConfirmModalProps {
 }
 
 export function ConfirmModal({
-  open,
-  onConfirm,
-  onCancel,
-  title,
-  message,
-  confirmLabel = 'Delete',
-  danger = true,
+  open, onConfirm, onCancel, title, message, confirmLabel = 'Delete', danger = true,
 }: ConfirmModalProps) {
   useEffect(() => {
     if (!open) return
@@ -45,7 +39,7 @@ export function ConfirmModal({
         >
           <div
             onClick={onCancel}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.94, y: 10 }}
@@ -54,29 +48,27 @@ export function ConfirmModal({
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'relative', width: '100%', maxWidth: 400,
-              background: '#FAFAFA', borderRadius: 16,
-              border: danger ? '1px solid #fecaca' : '1px solid #E4E4E4',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
+              background: 'var(--elevated)', borderRadius: 18,
+              border: danger ? '1px solid rgba(239,68,68,0.25)' : '1px solid var(--border)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
               padding: '24px 28px',
               display: 'flex', flexDirection: 'column', gap: 16,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                background: danger ? '#fef2f2' : '#F0F0F0',
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: danger ? 'var(--danger-dim)' : 'rgba(255,255,255,0.06)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <AlertTriangle size={18} style={{ color: danger ? '#ef4444' : '#8A94A6' }} />
+                <AlertTriangle size={18} style={{ color: danger ? 'var(--danger)' : 'var(--text-muted)' }} />
               </div>
               <div>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: '#1A1F36' }}>{title}</h2>
-                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>This cannot be undone</p>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{title}</h2>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>This cannot be undone</p>
               </div>
             </div>
-
-            <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>{message}</p>
-
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>{message}</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <Button variant="secondary" onClick={onCancel} style={{ flex: 1 }}>Cancel</Button>
               <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm} style={{ flex: 1 }}>

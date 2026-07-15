@@ -50,7 +50,7 @@ function CategoryModal({ open, onClose, initial }: { open: boolean; onClose: () 
   return (
     <Modal open={open} onClose={onClose} title={initial ? 'Edit Category' : 'Add Category'} size="sm">
       <form onSubmit={e => { e.preventDefault(); save() }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+        {err && <p style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-dim)', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
         <Field label="Name">
           <Input autoFocus placeholder="Groceries" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         </Field>
@@ -180,7 +180,7 @@ export function Settings() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 16 }}>{c.icon}</span>
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: NAVY }}>{c.name}</span>
+        <span style={{ fontSize: 13, color: 'var(--text)' }}>{c.name}</span>
         {c.isDefault && <span style={{ fontSize: 10, color: '#B0B0B0' }}>default</span>}
       </div>
       <div style={{ display: 'flex', gap: 2 }}>
@@ -195,13 +195,13 @@ export function Settings() {
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Settings</h1>
-        <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Manage your preferences and categories</p>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Settings</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Manage your preferences and categories</p>
       </div>
 
       {/* General settings — wrapped in form so Enter key works */}
       <Card style={{ padding: '20px 24px' }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>General</p>
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>General</p>
         <form onSubmit={e => { e.preventDefault(); saveSettings() }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr 1fr 160px', gap: 14, marginBottom: 16 }}>
             <Field label="App Name">
@@ -254,16 +254,16 @@ export function Settings() {
       {/* Categories */}
       <Card style={{ padding: '18px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Categories</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Categories</p>
           <Button size="sm" onClick={() => setShowCatModal(true)}><Plus size={12} /> Add Category</Button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
           <div>
-            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Expense</p>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Expense</p>
             {expCats.map(catRow)}
           </div>
           <div>
-            <p style={{ fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Income</p>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Income</p>
             {incCats.map(catRow)}
           </div>
         </div>
@@ -274,8 +274,8 @@ export function Settings() {
         <Card style={{ padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: NAVY }}>Learned Merchant Rules</p>
-              <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>Manually corrected category assignments — applied automatically to future transactions</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Learned Merchant Rules</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Manually corrected category assignments — applied automatically to future transactions</p>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -287,8 +287,8 @@ export function Settings() {
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F5F5'}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: NAVY, fontWeight: 500, textTransform: 'capitalize' }}>{key}</span>
-                    <span style={{ fontSize: 11, color: '#8A94A6' }}>→</span>
+                    <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, textTransform: 'capitalize' }}>{key}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>→</span>
                     <span style={{ fontSize: 12, color: cat ? NAVY : '#dc2626' }}>{cat ? `${cat.icon} ${cat.name}` : 'Deleted category'}</span>
                   </div>
                   <IconButton size="sm" variant="danger" onClick={() => dispatch({ type: 'DELETE_MERCHANT_RULE', payload: key })}>

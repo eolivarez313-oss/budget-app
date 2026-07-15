@@ -36,7 +36,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
         >
           <div
             onClick={onClose}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)' }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 12 }}
@@ -46,27 +46,27 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
             style={{
               position: 'relative', width: '100%', maxWidth: widths[size],
               maxHeight: 'calc(100vh - 64px)',
-              background: '#FAFAFA', borderRadius: 16,
-              border: '1px solid #E4E4E4',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
+              background: 'var(--elevated)', borderRadius: 18,
+              border: '1px solid var(--border)',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
               display: 'flex', flexDirection: 'column',
             }}
           >
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '20px 24px', borderBottom: '1px solid #EEEEEE', flexShrink: 0,
+              padding: '20px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0,
             }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#1A1F36' }}>{title}</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{title}</h2>
               <button
                 onClick={onClose}
                 style={{
-                  width: 28, height: 28, borderRadius: 6, border: '1px solid #E4E4E4',
-                  background: '#F0F0F0', cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', color: '#6b7280',
+                  width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)',
+                  background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#E4E4E4' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#F0F0F0' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)' }}
               >
                 <X size={14} />
               </button>

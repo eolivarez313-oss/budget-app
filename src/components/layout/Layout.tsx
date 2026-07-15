@@ -8,9 +8,14 @@ export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#D8D8D8', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
       <Sidebar />
-      <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '32px 40px', position: 'relative' }}>
+      <main style={{
+        flex: 1, minWidth: 0, overflowY: 'auto',
+        padding: '32px 40px',
+        position: 'relative',
+        background: 'var(--bg)',
+      }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}

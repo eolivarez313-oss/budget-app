@@ -12,7 +12,7 @@ const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
 
 const tt = {
-  contentStyle: { background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8, fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
+  contentStyle: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--text)', boxShadow: '0 4px 12px rgba(27,32,48,0.08)' },
 }
 
 export function NetWorth() {
@@ -54,8 +54,8 @@ export function NetWorth() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Net Worth</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Track your financial progress over time</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Net Worth</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Track your financial progress over time</p>
         </div>
         <Button variant="secondary" onClick={snapshotNow}><Plus size={15} /> Snapshot Now</Button>
       </div>
@@ -63,7 +63,7 @@ export function NetWorth() {
       {/* Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         <Card style={{ padding: '20px', textAlign: 'center' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Net Worth</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Net Worth</p>
           <p style={{ fontSize: 30, fontWeight: 700, color: netWorth >= 0 ? NAVY : '#dc2626', letterSpacing: '-1px' }}>{formatCurrency(netWorth, sym)}</p>
           {change !== null && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 6, fontSize: 12, color: change >= 0 ? GREEN : '#dc2626' }}>
@@ -73,19 +73,19 @@ export function NetWorth() {
           )}
         </Card>
         <Card style={{ padding: '20px', textAlign: 'center' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Assets</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Assets</p>
           <p style={{ fontSize: 26, fontWeight: 700, color: GREEN }}>{formatCurrency(assets, sym)}</p>
         </Card>
         <Card style={{ padding: '20px', textAlign: 'center' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Liabilities</p>
-          <p style={{ fontSize: 26, fontWeight: 700, color: '#dc2626' }}>{formatCurrency(liabilities, sym)}</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Total Liabilities</p>
+          <p style={{ fontSize: 26, fontWeight: 700, color: 'var(--danger)' }}>{formatCurrency(liabilities, sym)}</p>
         </Card>
       </div>
 
       {/* Chart + Donut */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
         <Card style={{ padding: '20px 24px' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Net Worth Over Time</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Net Worth Over Time</p>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
@@ -99,7 +99,7 @@ export function NetWorth() {
         </Card>
 
         <Card style={{ padding: '20px 24px' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Allocation</p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Allocation</p>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={donutData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3}>
@@ -113,9 +113,9 @@ export function NetWorth() {
               <div key={d.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color }} />
-                  <span style={{ color: '#8A94A6' }}>{d.name}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{d.name}</span>
                 </div>
-                <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(d.value, sym)}</span>
+                <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatCurrency(d.value, sym)}</span>
               </div>
             ))}
           </div>
@@ -132,8 +132,8 @@ export function NetWorth() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 4, height: 32, borderRadius: 99, background: a.color }} />
                   <div>
-                    <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>{a.name}</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                    <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{a.type}</p>
                   </div>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: GREEN }}>{formatCurrency(a.balance, sym)}</span>
@@ -141,36 +141,36 @@ export function NetWorth() {
             ))}
           </div>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #E4E4E4', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: '#8A94A6' }}>Total Assets</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total Assets</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: GREEN }}>{formatCurrency(assets, sym)}</span>
           </div>
         </Card>
 
         <Card style={{ padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Liabilities</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Liabilities</p>
             <Button size="sm" variant="secondary" onClick={() => {
               window.location.href = '/accounts'
             }}><Plus size={11} /> Add Liability</Button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {liabilityAccounts.length === 0 && <p style={{ color: '#8A94A6', fontSize: 13 }}>No liabilities — add a credit card, loan, or mortgage to track debt.</p>}
+            {liabilityAccounts.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No liabilities — add a credit card, loan, or mortgage to track debt.</p>}
             {liabilityAccounts.map(a => (
               <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 4, height: 32, borderRadius: 99, background: a.color }} />
                   <div>
-                    <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>{a.name}</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                    <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{a.name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{a.type}</p>
                   </div>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#dc2626' }}>{formatCurrency(Math.abs(a.balance), sym)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)' }}>{formatCurrency(Math.abs(a.balance), sym)}</span>
               </div>
             ))}
           </div>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #E4E4E4', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: '#8A94A6' }}>Total Liabilities</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#dc2626' }}>{formatCurrency(liabilities, sym)}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total Liabilities</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)' }}>{formatCurrency(liabilities, sym)}</span>
           </div>
         </Card>
       </div>

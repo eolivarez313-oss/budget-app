@@ -11,11 +11,55 @@ html, body {
   width: 100%;
 }
 
+/* ── Design tokens ───────────────────────────────────────────────────────────
+   These are the single source of truth for the dark fintech palette.
+   All components should use these vars; avoid hardcoding colors in JS.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --bg:            #0D1117;   /* page background — darkest */
+  --sidebar:       #0A0F1A;   /* sidebar — slightly darker than bg */
+  --surface:       #161C2D;   /* cards, panels */
+  --surface-hover: #1C2340;   /* card hover state */
+  --elevated:      #1E2742;   /* modals, popovers — lightest surface */
+  --border:        rgba(255,255,255,0.07);
+
+  /* Accent & status */
+  --accent:        #06C68A;   /* primary green — buttons, active states */
+  --accent-dim:    rgba(6,198,138,0.12);
+  --accent-hover:  #04b07a;
+  --danger:        #ef4444;
+  --danger-dim:    rgba(239,68,68,0.12);
+  --warning:       #f59e0b;
+  --warning-dim:   rgba(245,158,11,0.12);
+  --info:          #60a5fa;
+  --info-dim:      rgba(96,165,250,0.12);
+
+  /* Typography */
+  --text:          #E4E8F2;   /* primary text */
+  --text-muted:    #6B7A99;   /* labels, helper text */
+  --text-dim:      #3D4A66;   /* very faint — decorative only */
+
+  /* Spacing scale */
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  16px;
+  --r-xl:  20px;
+
+  /* Animation */
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:   cubic-bezier(0.4, 0, 1, 1);
+  --ease:      cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  150ms;
+  --dur-mid:   220ms;
+  --dur-slow:  300ms;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: #D8D8D8;
-  color: #1A1F36;
+  background: var(--bg);
+  color: var(--text);
 }
 
 #root {
@@ -29,30 +73,20 @@ input, select, textarea {
   font-family: inherit;
 }
 
-/* Scrollbar */
+/* ── Scrollbar ───────────────────────────────────────────────────────────────*/
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
-/* ── Standard easing values ──────────────────────────────────── */
-:root {
-  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in:   cubic-bezier(0.4, 0, 1, 1);
-  --ease:      cubic-bezier(0.4, 0, 0.2, 1);
-  --dur-fast:  150ms;
-  --dur-mid:   220ms;
-  --dur-slow:  300ms;
-}
-
-/* ── Page entrance (used by Layout wrapper) ──────────────────── */
+/* ── Page entrance ───────────────────────────────────────────────────────────*/
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-in { animation: fadeUp 0.22s var(--ease-out) both; }
 
-/* ── Modal backdrop + panel (CSS fallback; Framer handles the real ones) */
+/* ── Modal animations ────────────────────────────────────────────────────────*/
 @keyframes backdropIn {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -64,7 +98,7 @@ input, select, textarea {
 .modal-backdrop { animation: backdropIn 0.18s ease both; }
 .modal-panel    { animation: modalIn 0.24s var(--ease-out) both; }
 
-/* ── Interactive press feedback ──────────────────────────────── */
+/* ── Button press feedback ───────────────────────────────────────────────────*/
 button:active:not(:disabled) {
   transform: scale(0.97);
 }
@@ -72,47 +106,68 @@ button {
   transition: transform 0.1s var(--ease-out), background 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 
-/* ── Transaction row hover ───────────────────────────────────── */
+/* ── Transaction row hover ───────────────────────────────────────────────────*/
 .tx-row {
   transition: background 0.12s;
 }
 .tx-row:hover {
-  background: rgba(6,198,138,0.04) !important;
+  background: var(--accent-dim) !important;
 }
 
-/* ── Sidebar nav ─────────────────────────────────────────────── */
+/* ── Sidebar nav ─────────────────────────────────────────────────────────────*/
 .nav-item {
   transition: background 0.15s, color 0.15s, transform 0.15s;
 }
 .nav-item:not(.active):hover {
-  background: rgba(255,255,255,0.07) !important;
-  color: rgba(255,255,255,0.8) !important;
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--text) !important;
 }
 .nav-item.active {
   transform: translateX(2px);
 }
 
-/* ── Pie chart slice hover (recharts) ────────────────────────── */
+/* ── Pie chart slice ─────────────────────────────────────────────────────────*/
 .recharts-sector {
   transition: opacity 0.18s, transform 0.18s;
   transform-origin: center;
 }
 
-/* ── Skeleton loader ─────────────────────────────────────────── */
+/* ── Skeleton loader ─────────────────────────────────────────────────────────*/
 @keyframes shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
   background-size: 800px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 
-/* ── Smooth height collapse/expand ──────────────────────────── */
+/* ── Collapsible ─────────────────────────────────────────────────────────────*/
 .collapsible {
   overflow: hidden;
-  transition: height var(--dur-mid) var(--ease-out),
-              opacity var(--dur-mid) var(--ease-out);
+  transition: height var(--dur-mid) var(--ease-out), opacity var(--dur-mid) var(--ease-out);
+}
+
+/* ── Dividers ────────────────────────────────────────────────────────────────*/
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Stat number (large hero figures) ───────────────────────────────────────*/
+.stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }

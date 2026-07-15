@@ -12,11 +12,11 @@ import { formatCurrency } from '../utils/formatters'
 import { Subscription, AppSettings } from '../types'
 
 const GREEN = '#06C68A'
-const NAVY = '#1A1F36'
+const NAVY = 'var(--text)'
 const RED = '#ef4444'
 const AMBER = '#f59e0b'
 const BILLS_COLOR = '#f97316'
-const GRAY = '#8A94A6'
+const GRAY = 'var(--text-muted)'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,8 +51,8 @@ function fourWeeksAgo() { return format(subWeeks(new Date(), 4), 'yyyy-MM-dd') }
 
 const tt = {
   contentStyle: {
-    background: '#FAFAFA', border: '1px solid #E4E4E4', borderRadius: 8,
-    fontSize: 12, color: NAVY, boxShadow: '0 4px 12px rgba(27,32,48,0.08)',
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+    fontSize: 12, color: 'var(--text)', boxShadow: '0 4px 12px rgba(27,32,48,0.08)',
   },
 }
 
@@ -61,9 +61,9 @@ const tt = {
 function StatTile({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
     <Card style={{ padding: '18px 20px', textAlign: 'center' }}>
-      <p style={{ fontSize: 10, fontWeight: 600, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
+      <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
       <p style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontSize: 11, color: GRAY, marginTop: 6 }}>{sub}</p>}
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{sub}</p>}
     </Card>
   )
 }
@@ -72,8 +72,8 @@ function EmptyState({ icon, title, body }: { icon: string; title: string; body: 
   return (
     <Card style={{ padding: '56px 32px', textAlign: 'center' }}>
       <p style={{ fontSize: 36, marginBottom: 14 }}>{icon}</p>
-      <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 8 }}>{title}</p>
-      <p style={{ fontSize: 13, color: GRAY, maxWidth: 360, margin: '0 auto' }}>{body}</p>
+      <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>{title}</p>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 360, margin: '0 auto' }}>{body}</p>
     </Card>
   )
 }
@@ -217,13 +217,13 @@ export function Analysis() {
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Analysis</h1>
-          <p style={{ fontSize: 13, color: GRAY, marginTop: 3 }}>Budget vs. actual · {periodLabel}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Analysis</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Budget vs. actual · {periodLabel}</p>
         </div>
 
         {/* Mode toggle */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', background: '#F0F0F0', borderRadius: 10, padding: 3, gap: 2 }}>
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 3, gap: 2 }}>
             {(['weekly', 'range'] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setViewMode(m)}
                 style={{
@@ -245,9 +245,9 @@ export function Analysis() {
                 <ChevronLeft size={15} color={NAVY} />
               </button>
               <span style={{
-                fontSize: 13, fontWeight: 600, color: NAVY, padding: '6px 16px', borderRadius: 8,
-                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : '#F0F0F0',
-                border: `1px solid ${isCurrentWeek ? 'rgba(6,198,138,0.25)' : '#E4E4E4'}`,
+                fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '6px 16px', borderRadius: 8,
+                background: isCurrentWeek ? 'rgba(6,198,138,0.1)' : 'rgba(255,255,255,0.06)',
+                border: '1px solid var(--border)',
                 minWidth: 170, textAlign: 'center',
               }}>
                 {isCurrentWeek ? 'This Week' : weekLabel(currentWS)}
@@ -262,15 +262,15 @@ export function Analysis() {
           {viewMode === 'range' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <label style={{ fontSize: 12, color: GRAY, fontWeight: 500 }}>From</label>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>From</label>
                 <DatePicker value={rangeFrom} onChange={setRangeFrom} max={rangeTo || todayStr()} style={{ width: 152 }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <label style={{ fontSize: 12, color: GRAY, fontWeight: 500 }}>To</label>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>To</label>
                 <DatePicker value={rangeTo} onChange={setRangeTo} min={rangeFrom} max={todayStr()} style={{ width: 152 }} />
               </div>
               {rangeValid && (
-                <span style={{ fontSize: 12, color: GRAY, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {rangeDays} days · {weekCount.toFixed(1)} wks
                 </span>
               )}
@@ -281,14 +281,14 @@ export function Analysis() {
 
       {/* ── Invalid range warning ── */}
       {viewMode === 'range' && !rangeValid && rangeFrom && rangeTo && rangeFrom > rangeTo && (
-        <div style={{ padding: '10px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, color: RED, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '10px 16px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, fontSize: 13, color: RED, display: 'flex', alignItems: 'center', gap: 8 }}>
           <AlertTriangle size={14} /> End date must be on or after start date.
         </div>
       )}
 
       {/* ── Overspending banner ── */}
       {overBudgetCategories.length > 0 && !hasNoData && (
-        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10 }}>
+        <div style={{ padding: '12px 16px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <AlertTriangle size={14} style={{ color: RED, flexShrink: 0 }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: RED }}>
@@ -297,7 +297,7 @@ export function Analysis() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {overBudgetCategories.map(r => (
-              <span key={r.catId} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: '#fee2e2', color: RED, fontWeight: 500 }}>
+              <span key={r.catId} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 99, background: 'var(--danger-dim)', color: RED, fontWeight: 500 }}>
                 {r.icon} {r.name}: +{formatCurrency(-r.diff, sym)}
               </span>
             ))}
@@ -334,8 +334,8 @@ export function Analysis() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 34, height: 34, borderRadius: 8, background: BILLS_COLOR + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🧾</div>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: NAVY }}>Bills (fixed)</p>
-                    <p style={{ fontSize: 11, color: GRAY }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>Bills (fixed)</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {viewMode === 'range' ? `${formatCurrency(weeklyBillsTotal, sym)}/wk × ${weekCount.toFixed(1)} wks` : 'Fixed weekly obligation'}
                     </p>
                   </div>
@@ -353,7 +353,7 @@ export function Analysis() {
             />
           ) : categoryRows.length === 0 ? (
             <Card style={{ padding: '32px 24px', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, color: GRAY }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 No weekly budget categories set. Create allocations in <strong>Budgets</strong> to see budget vs. actual here.
               </p>
             </Card>
@@ -366,10 +366,10 @@ export function Analysis() {
                       {r.icon}
                     </div>
                     <div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: NAVY }}>{r.name}</p>
-                      <p style={{ fontSize: 11, color: GRAY }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{r.name}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {formatCurrency(r.spent, sym)} of {formatCurrency(r.budgeted, sym)}
-                        {viewMode === 'range' && <span style={{ color: '#C0C8D8' }}> ({weekCount.toFixed(1)} wks)</span>}
+                        {viewMode === 'range' && <span style={{ color: 'var(--text-dim)' }}> ({weekCount.toFixed(1)} wks)</span>}
                       </p>
                     </div>
                   </div>
@@ -381,7 +381,7 @@ export function Analysis() {
                     {r.over ? '▲' : '▼'} {formatCurrency(Math.abs(r.diff), sym)}
                   </span>
                 </div>
-                <div style={{ width: '100%', background: '#EBEBEB', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                <div style={{ width: '100%', background: 'var(--surface)', borderRadius: 99, height: 5, overflow: 'hidden' }}>
                   <div style={{
                     height: 5, borderRadius: 99,
                     width: `${Math.min(100, r.pct)}%`,
@@ -389,7 +389,7 @@ export function Analysis() {
                     transition: 'width 0.4s ease',
                   }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: GRAY, marginTop: 5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
                   <span>{Math.round(r.pct)}% used</span>
                   <span style={{ color: r.over ? RED : GREEN, fontWeight: 500 }}>
                     {r.over ? `Over by ${formatCurrency(-r.diff, sym)}` : `${formatCurrency(r.diff, sym)} remaining`}
@@ -404,11 +404,11 @@ export function Analysis() {
               <p style={{ fontSize: 11, fontWeight: 600, color: AMBER, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
                 Unbudgeted · {formatCurrency(unbudgetedTotal, sym)}
               </p>
-              <p style={{ fontSize: 12, color: GRAY, marginBottom: 10 }}>Spending in categories with no weekly budget set.</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Spending in categories with no weekly budget set.</p>
               {Object.entries(unbudgetedByCat).map(([catId, b]) => (
                 <div key={catId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                  <span style={{ color: '#6b7280' }}>{b.icon} {b.name}</span>
-                  <span style={{ color: NAVY, fontWeight: 500 }}>{formatCurrency(b.total, sym)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{b.icon} {b.name}</span>
+                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatCurrency(b.total, sym)}</span>
                 </div>
               ))}
             </Card>
@@ -422,22 +422,22 @@ export function Analysis() {
           <Card style={{ padding: '20px 22px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <Award size={14} color={NAVY} />
-              <p style={{ fontSize: 12, fontWeight: 600, color: NAVY }}>Top Expenses</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Top Expenses</p>
             </div>
             {biggestExpenses.length === 0 ? (
-              <p style={{ fontSize: 12, color: GRAY }}>No expenses in this period.</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No expenses in this period.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
                 {biggestExpenses.map((t, i) => {
                   const cat = state.categories.find(c => c.id === t.categoryId)
                   return (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#C0C8D8', width: 18, flexShrink: 0 }}>#{i + 1}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', width: 18, flexShrink: 0 }}>#{i + 1}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12.5, fontWeight: 500, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</p>
-                        <p style={{ fontSize: 10, color: GRAY, marginTop: 1 }}>{cat?.icon} {cat?.name} · {t.date}</p>
+                        <p style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</p>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{cat?.icon} {cat?.name} · {t.date}</p>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{formatCurrency(t.amount, sym)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flexShrink: 0 }}>{formatCurrency(t.amount, sym)}</span>
                     </div>
                   )
                 })}
@@ -448,7 +448,7 @@ export function Analysis() {
           {/* Bar chart: budget vs actual */}
           {categoryRows.length > 0 && !hasNoData && (
             <Card style={{ padding: '20px 22px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 14 }}>Budget vs. Actual</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Budget vs. Actual</p>
               <ResponsiveContainer width="100%" height={Math.max(100, categoryRows.length * 28)}>
                 <BarChart
                   data={categoryRows.map(r => ({ name: `${r.icon} ${r.name}`, spent: r.spent, budgeted: r.budgeted, over: r.over }))}
@@ -457,7 +457,7 @@ export function Analysis() {
                   barSize={7}
                   barCategoryGap="35%"
                 >
-                  <XAxis type="number" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                  <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
                   <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
                   <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
                   <Bar dataKey="budgeted" fill="#EBEBEB" radius={[0, 4, 4, 0]} name="Budgeted" />
@@ -473,20 +473,20 @@ export function Analysis() {
           <Card style={{ padding: '20px 22px' }}>
             {viewMode === 'weekly' ? (
               <>
-                <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 2 }}>Weekly Spending Trend</p>
-                <p style={{ fontSize: 11, color: GRAY, marginBottom: 14 }}>Last 8 weeks vs. budget</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Weekly Spending Trend</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>Last 8 weeks vs. budget</p>
                 {!hasAnyTrendData ? (
                   <div style={{ textAlign: 'center', padding: '20px 0' }}>
                     <TrendingUp size={26} style={{ color: '#E4E4E4', margin: '0 auto 8px', display: 'block' }} />
-                    <p style={{ fontSize: 12, color: GRAY }}>Trend appears after importing transactions from prior weeks.</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Trend appears after importing transactions from prior weeks.</p>
                   </div>
                 ) : (
                   <>
                     <ResponsiveContainer width="100%" height={170}>
                       <LineChart data={trendWeeks} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
-                        <XAxis dataKey="label" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                        <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
                         <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
                         {totalBudgeted > 0 && (
                           <ReferenceLine y={totalBudgeted} stroke={GREEN} strokeDasharray="4 3" strokeWidth={1.5}
@@ -508,7 +508,7 @@ export function Analysis() {
                             : <TrendingUp size={13} style={{ color: RED }} />
                           }
                           <span style={{ color: delta < 0 ? GREEN : RED, fontWeight: 500 }}>{delta < 0 ? '−' : '+'}{pct}% vs. last week</span>
-                          <span style={{ color: GRAY }}>({formatCurrency(Math.abs(delta), sym)} {delta < 0 ? 'less' : 'more'})</span>
+                          <span style={{ color: 'var(--text-muted)' }}>({formatCurrency(Math.abs(delta), sym)} {delta < 0 ? 'less' : 'more'})</span>
                         </div>
                       )
                     })()}
@@ -517,13 +517,13 @@ export function Analysis() {
               </>
             ) : rangeWeeks.length > 0 ? (
               <>
-                <p style={{ fontSize: 12, fontWeight: 600, color: NAVY, marginBottom: 2 }}>Week-by-Week Breakdown</p>
-                <p style={{ fontSize: 11, color: GRAY, marginBottom: 14 }}>Spending within selected range</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Week-by-Week Breakdown</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>Spending within selected range</p>
                 <ResponsiveContainer width="100%" height={170}>
                   <BarChart data={rangeWeeks} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#EBEBEB" />
-                    <XAxis dataKey="label" tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: GRAY, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+                    <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
                     <Tooltip {...tt} formatter={(v: any) => formatCurrency(Number(v), sym)} />
                     <Bar dataKey="budgeted" fill="#EBEBEB" radius={[4, 4, 0, 0]} name="Budgeted" barSize={10} />
                     <Bar dataKey="spent" fill={NAVY} radius={[4, 4, 0, 0]} name="Spent" barSize={10}>
@@ -535,7 +535,7 @@ export function Analysis() {
             ) : (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
                 <Calendar size={26} style={{ color: '#E4E4E4', margin: '0 auto 8px', display: 'block' }} />
-                <p style={{ fontSize: 12, color: GRAY }}>Select a range longer than one week to see a breakdown.</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Select a range longer than one week to see a breakdown.</p>
               </div>
             )}
           </Card>
@@ -550,8 +550,8 @@ export function Analysis() {
 function PageHeader() {
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Analysis</h1>
-      <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>Budget vs. actual spending by week</p>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Analysis</h1>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Budget vs. actual spending by week</p>
     </div>
   )
 }
@@ -559,7 +559,7 @@ function PageHeader() {
 function navBtnStyle(disabled = false): React.CSSProperties {
   return {
     width: 32, height: 32, borderRadius: 8,
-    border: '1px solid #E4E4E4',
+    border: '1px solid var(--border)',
     background: disabled ? '#F9F9F9' : '#F0F0F0',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',

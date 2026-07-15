@@ -1,15 +1,13 @@
 import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react'
 
-const GREEN = '#06C68A'
-
 const base: React.CSSProperties = {
   width: '100%',
-  background: '#F5F5F5',
-  border: '1px solid #E4E4E4',
-  borderRadius: 8,
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
   padding: '10px 12px',
   fontSize: 13.5,
-  color: '#1A1F36',
+  color: 'var(--text)',
   fontFamily: 'inherit',
   outline: 'none',
   lineHeight: 1.5,
@@ -20,9 +18,9 @@ interface FieldProps { label?: string; error?: string; children: ReactNode }
 export function Field({ label, error, children }: FieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {label && <label style={{ fontSize: 13, fontWeight: 500, color: '#4B5563' }}>{label}</label>}
+      {label && <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>}
       {children}
-      {error && <p style={{ fontSize: 12, color: '#dc2626', marginTop: 2 }}>{error}</p>}
+      {error && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 2 }}>{error}</p>}
     </div>
   )
 }
@@ -32,15 +30,15 @@ export function Input({ style, onFocus, onBlur, ...props }: InputHTMLAttributes<
     <input
       style={{ ...base, ...style }}
       onFocus={e => {
-        e.currentTarget.style.borderColor = GREEN
-        e.currentTarget.style.boxShadow = `0 0 0 3px rgba(6,198,138,0.12)`
-        e.currentTarget.style.background = '#fff'
+        e.currentTarget.style.borderColor = 'var(--accent)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
+        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
         onFocus?.(e)
       }}
       onBlur={e => {
-        e.currentTarget.style.borderColor = '#E4E4E4'
+        e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F5F5F5'
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
         onBlur?.(e)
       }}
       {...props}
@@ -64,7 +62,6 @@ export function Select({ style, children, ...props }: SelectHTMLAttributes<HTMLS
       >
         {children}
       </select>
-      {/* Custom chevron */}
       <svg
         viewBox="0 0 20 20"
         fill="none"
@@ -73,7 +70,7 @@ export function Select({ style, children, ...props }: SelectHTMLAttributes<HTMLS
           width: 14, height: 14, pointerEvents: 'none',
         }}
       >
-        <path d="M5 7.5L10 12.5L15 7.5" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5 7.5L10 12.5L15 7.5" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
   )
@@ -84,15 +81,15 @@ export function Textarea({ style, onFocus, onBlur, ...props }: TextareaHTMLAttri
     <textarea
       style={{ ...base, resize: 'none', ...style }}
       onFocus={e => {
-        e.currentTarget.style.borderColor = GREEN
-        e.currentTarget.style.boxShadow = `0 0 0 3px rgba(6,198,138,0.12)`
-        e.currentTarget.style.background = '#fff'
+        e.currentTarget.style.borderColor = 'var(--accent)'
+        e.currentTarget.style.boxShadow = '0 0 0 3px var(--accent-dim)'
+        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
         onFocus?.(e)
       }}
       onBlur={e => {
-        e.currentTarget.style.borderColor = '#E4E4E4'
+        e.currentTarget.style.borderColor = 'var(--border)'
         e.currentTarget.style.boxShadow = 'none'
-        e.currentTarget.style.background = '#F5F5F5'
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
         onBlur?.(e)
       }}
       {...props}

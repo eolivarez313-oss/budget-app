@@ -58,7 +58,7 @@ function AccountModal({ open, onClose, initial }: { open: boolean; onClose: () =
     <Modal open={open} onClose={onClose} title={initial ? 'Edit Account' : 'Add Account'}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {err && (
-          <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+          <div style={{ padding: '10px 14px', background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 13, color: 'var(--danger)' }}>
             {err}
           </div>
         )}
@@ -144,8 +144,8 @@ export function Accounts() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Accounts</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{state.accounts.length} account{state.accounts.length !== 1 ? 's' : ''}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Accounts</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{state.accounts.length} account{state.accounts.length !== 1 ? 's' : ''}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}><Plus size={15} /> Add Account</Button>
       </div>
@@ -155,10 +155,10 @@ export function Accounts() {
         {[
           { label: 'Cash & Savings', value: state.accounts.filter(a => ['checking','savings','cash'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: GREEN },
           { label: 'Investments', value: state.accounts.filter(a => ['investment','401k','ira'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: '#4A6CF7' },
-          { label: 'Debt', value: state.accounts.filter(a => ['credit','loan'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: '#dc2626' },
+          { label: 'Debt', value: state.accounts.filter(a => ['credit','loan'].includes(a.type)).reduce((s,a) => s+a.balance, 0), color: 'var(--danger)' },
         ].map(s => (
           <Card key={s.label} style={{ padding: '18px 20px', textAlign: 'center' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{s.label}</p>
             <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{formatCurrency(s.value, sym)}</p>
           </Card>
         ))}
@@ -166,7 +166,7 @@ export function Accounts() {
 
       {Object.entries(byType).map(([group, accs]) => (
         <div key={group} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{group}</h2>
+          <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{group}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {accs.map(a => {
               const Icon = TYPE_ICONS[a.type] || Wallet
@@ -178,9 +178,9 @@ export function Accounts() {
                         <Icon size={20} style={{ color: a.color }} />
                       </div>
                       <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>{a.name}</p>
-                        {a.institution && <p style={{ fontSize: 11, color: '#8A94A6' }}>{a.institution}</p>}
-                        <p style={{ fontSize: 11, color: '#8A94A6', textTransform: 'capitalize' }}>{a.type}</p>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{a.name}</p>
+                        {a.institution && <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.institution}</p>}
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{a.type}</p>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>

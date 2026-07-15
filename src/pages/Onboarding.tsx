@@ -35,7 +35,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   async function finish() {
-    const name = appName.trim() || 'My Budget'
+    const name = appName.trim() || ''
     const initial = getInitialData()
     const cleanState = {
       ...initial,
@@ -45,11 +45,12 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       goals: [],
       netWorthHistory: [],
       subscriptions: [],
-      settings: { ...initial.settings, name, currencySymbol: currencySymbol || '$' },
+      settings: { ...initial.settings, name: name || 'My Budget', currencySymbol: currencySymbol || '$' },
     }
     const { seedDatabase } = await import('../lib/db')
     await seedDatabase(cleanState)
     dispatch({ type: 'SET_STATE', payload: cleanState })
+    if (name) dispatch({ type: 'UPDATE_PROFILE', payload: { name } } as any)
     onComplete()
   }
 

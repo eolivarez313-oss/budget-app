@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { StoreProvider, useStore } from './store/useStore'
 import { Layout } from './components/layout/Layout'
+import { Navigate } from 'react-router-dom'
 import { Dashboard } from './pages/Dashboard'
 import { Transactions } from './pages/Transactions'
 import { Budgets } from './pages/Budgets'
@@ -13,6 +14,9 @@ import { Reports } from './pages/Reports'
 import { Analysis } from './pages/Analysis'
 import { Settings } from './pages/Settings'
 import { Onboarding } from './pages/Onboarding'
+import { Home } from './pages/Home'
+import { Profile } from './pages/Profile'
+import { WorkspaceCreate } from './pages/WorkspaceCreate'
 import { DollarSign } from 'lucide-react'
 
 const ONBOARDING_KEY = 'budget_onboarding_done'
@@ -37,7 +41,7 @@ function AppRoutes() {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: '#1A1F36', flexDirection: 'column', gap: 16,
+        minHeight: '100vh', background: 'var(--bg)', flexDirection: 'column', gap: 16,
       }}>
         <div style={{ position: 'relative', width: 56, height: 56 }}>
           <div style={{
@@ -65,7 +69,9 @@ function AppRoutes() {
       {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/goals" element={<Goals />} />
@@ -75,6 +81,8 @@ function AppRoutes() {
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/workspace/new" element={<WorkspaceCreate />} />
         </Routes>
       </Layout>
     </>

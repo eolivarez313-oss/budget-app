@@ -94,7 +94,7 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
   return (
     <Modal open={open} onClose={onClose} title={initial ? 'Edit Transaction' : 'Add Transaction'}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {err && <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
+        {err && <p style={{ fontSize: 13, color: 'var(--danger)', background: 'var(--danger-dim)', padding: '8px 12px', borderRadius: 8 }}>{err}</p>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Type">
             <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as TransactionType, categoryId: '' }))}>
@@ -146,10 +146,10 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
         )}
         {retroPrompt && (
           <div style={{ background: 'rgba(6,198,138,0.08)', border: '1px solid rgba(6,198,138,0.3)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ fontSize: 13, color: NAVY, fontWeight: 500 }}>
+            <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
               Apply to {retroPrompt.txIds.length} other transaction{retroPrompt.txIds.length !== 1 ? 's' : ''} from "{retroPrompt.merchant}"?
             </p>
-            <p style={{ fontSize: 12, color: '#8A94A6' }}>Other past transactions from this merchant still have a different category. Fix them all now?</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Other past transactions from this merchant still have a different category. Fix them all now?</p>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button size="sm" onClick={applyRetroactively} style={{ flex: 1 }}>Yes, fix all</Button>
               <Button size="sm" variant="secondary" onClick={() => { setRetroPrompt(null); onClose() }} style={{ flex: 1 }}>No, just this one</Button>
@@ -218,8 +218,8 @@ export function Transactions() {
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: NAVY, letterSpacing: '-0.5px' }}>Transactions</h1>
-          <p style={{ fontSize: 13, color: '#8A94A6', marginTop: 3 }}>{filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px' }}>Transactions</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{filtered.length} transaction{filtered.length !== 1 ? 's' : ''}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="secondary" onClick={() => { setShowBulkDelete(v => !v); setConfirmingBulk(false) }}>
@@ -233,7 +233,7 @@ export function Transactions() {
       <Card style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8A94A6', pointerEvents: 'none' }} />
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <Input placeholder="Search transactions..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 36 }} />
           </div>
           <Button variant="secondary" onClick={() => setShowFilters(f => !f)}>
@@ -277,10 +277,10 @@ export function Transactions() {
           transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           style={{ overflow: 'hidden' }}
         >
-        <Card style={{ padding: '18px 20px', border: '1px solid #fecaca', background: '#fff8f8' }}>
+        <Card style={{ padding: '18px 20px', border: '1px solid rgba(239,68,68,0.2)', background: '#fff8f8' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <Trash2 size={15} style={{ color: '#ef4444' }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: NAVY }}>Bulk Delete by Date Range</p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Bulk Delete by Date Range</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
             <Field label="From date">
@@ -301,11 +301,11 @@ export function Transactions() {
           {bulkFrom && bulkTo && bulkFrom <= bulkTo && (
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: bulkMatches.length > 0 ? '#fef2f2' : 'rgba(0,0,0,0.03)', border: `1px solid ${bulkMatches.length > 0 ? '#fecaca' : '#E4E4E4'}` }}>
               {bulkMatches.length > 0 ? (
-                <p style={{ fontSize: 13, color: '#dc2626' }}>
+                <p style={{ fontSize: 13, color: 'var(--danger)' }}>
                   <strong>{bulkMatches.length}</strong> transaction{bulkMatches.length !== 1 ? 's' : ''} found between {bulkFrom} and {bulkTo} · total {formatCurrency(bulkTotal, state.settings.currencySymbol)}
                 </p>
               ) : (
-                <p style={{ fontSize: 13, color: '#8A94A6' }}>No transactions in this date range.</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No transactions in this date range.</p>
               )}
             </div>
           )}
@@ -318,28 +318,28 @@ export function Transactions() {
       {confirmingBulk && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={() => setConfirmingBulk(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }} />
-          <div style={{ position: 'relative', background: '#fff', borderRadius: 16, border: '1px solid #fecaca', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 440, padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ position: 'relative', background: '#fff', borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 440, padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--danger-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <AlertTriangle size={18} style={{ color: '#ef4444' }} />
               </div>
               <div>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: NAVY }}>Confirm bulk delete</h2>
-                <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>This cannot be undone</p>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Confirm bulk delete</h2>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>This cannot be undone</p>
               </div>
             </div>
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ background: 'var(--danger-dim)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#6b7280' }}>Transactions</span>
-                <span style={{ fontWeight: 600, color: NAVY }}>{bulkMatches.length}</span>
+                <span style={{ color: 'var(--text-muted)' }}>Transactions</span>
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{bulkMatches.length}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#6b7280' }}>Total amount</span>
-                <span style={{ fontWeight: 600, color: NAVY }}>{formatCurrency(bulkTotal, state.settings.currencySymbol)}</span>
+                <span style={{ color: 'var(--text-muted)' }}>Total amount</span>
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{formatCurrency(bulkTotal, state.settings.currencySymbol)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#6b7280' }}>Date range</span>
-                <span style={{ fontWeight: 600, color: NAVY }}>{bulkFrom} → {bulkTo}</span>
+                <span style={{ color: 'var(--text-muted)' }}>Date range</span>
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{bulkFrom} → {bulkTo}</span>
               </div>
             </div>
             <p style={{ fontSize: 13, color: '#374151' }}>
@@ -358,7 +358,7 @@ export function Transactions() {
 
       <Card>
         {filtered.length === 0 && (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#8A94A6', fontSize: 14 }}>No transactions found.</div>
+          <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>No transactions found.</div>
         )}
         {filtered.map((t, i) => {
           const cat = state.categories.find(c => c.id === t.categoryId)
@@ -370,12 +370,12 @@ export function Transactions() {
               borderBottom: i < filtered.length - 1 ? '1px solid #EBEBEB' : 'none',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
                   {cat?.icon || '💳'}
                 </div>
                 <div>
-                  <p style={{ fontSize: 13.5, fontWeight: 500, color: NAVY }}>{t.description}</p>
-                  <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>{cat?.name} · {acc?.name} · {formatDate(t.date)}</p>
+                  <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text)' }}>{t.description}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{cat?.name} · {acc?.name} · {formatDate(t.date)}</p>
                 </div>
                 {t.isRecurring && (
                   <span style={{ fontSize: 11, color: GREEN, background: 'rgba(6,198,138,0.1)', padding: '2px 8px', borderRadius: 99 }}>Recurring</span>
