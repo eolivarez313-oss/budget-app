@@ -98,7 +98,7 @@ export function Dashboard() {
   const chartMonth = monthsWithExpenses[0] || month
 
   const txIncome = getMonthIncome(transactions, month)
-  const income = txIncome > 0 ? txIncome : (state.settings.monthlyIncome || 0)
+  const income = state.settings.monthlyIncome || txIncome
   const txExpenses = getMonthExpenses(transactions, month)
   const activeSubs = subscriptions.filter(s => s.status === 'active')
   const billsMonthly = activeSubs.reduce((s, sub) => s + (sub.frequency === 'monthly' ? sub.amount : sub.frequency === 'yearly' ? sub.amount / 12 : sub.amount * 4.33), 0)
