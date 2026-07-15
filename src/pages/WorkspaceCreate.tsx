@@ -80,7 +80,7 @@ export function WorkspaceCreate() {
       contributors.filter(c => c.name.trim() && c.incomeAmount > 0),
     )
     createWorkspace(ws)
-    navigate('/budgets')
+    navigate('/hub')
   }
 
   function addContributor() {
@@ -105,6 +105,7 @@ export function WorkspaceCreate() {
   const steps = ['Name', 'Type', 'Income']
 
   return (
+    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '40px 24px 80px' }}>
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 540, margin: '0 auto', width: '100%' }}>
 
       {/* Header */}
@@ -116,7 +117,7 @@ export function WorkspaceCreate() {
           <ArrowLeft size={16} />
         </button>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>New workspace</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>New budget</h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
             Step {stepIndex[step] + 1} of {steps.length}
           </p>
@@ -138,11 +139,11 @@ export function WorkspaceCreate() {
       {/* Step: Name */}
       {step === 'name' && (
         <Card style={{ padding: '28px 24px' }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Name your workspace</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Name your budget</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
-            This is how you'll identify it in the switcher. Something like "Household" or "Side Business" works well.
+            This is how you'll identify it on the Hub. Something like "Household" or "Side Business" works well.
           </p>
-          <Field label="Workspace name" error={errors.name}>
+          <Field label="Budget name" error={errors.name}>
             <Input
               value={name}
               onChange={e => { setName(e.target.value); setErrors({}) }}
@@ -296,9 +297,10 @@ export function WorkspaceCreate() {
           </Button>
         ) : <div />}
         <Button onClick={next} style={{ minWidth: 120 }}>
-          {step === 'contributors' ? 'Create workspace' : 'Continue'} <ArrowRight size={14} />
+          {step === 'contributors' ? 'Create budget' : 'Continue'} <ArrowRight size={14} />
         </Button>
       </div>
+    </div>
     </div>
   )
 }

@@ -150,11 +150,26 @@ export function Sidebar() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
-                <Plus size={13} /> New workspace
+                <Plus size={13} /> New budget
               </button>
             </div>
           </>
         )}
+      </div>
+
+      {/* Meridian wordmark — links back to Hub */}
+      <div style={{ padding: '18px 20px 10px' }}>
+        <button
+          onClick={() => navigate('/hub')}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            fontFamily: '"Fraunces", ui-serif, Georgia, serif',
+            fontSize: 17, fontWeight: 600, color: 'var(--text)',
+            letterSpacing: '-0.03em',
+          }}
+        >
+          Meridian
+        </button>
       </div>
 
       {/* Nav label */}
