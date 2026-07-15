@@ -8,9 +8,9 @@ import { Transaction } from '../types'
 import { uuid } from '../utils/uuid'
 import { suggestCategoryId, detectDirection, merchantKey, TxDirection } from '../utils/categorize'
 
-const GREEN = '#06C68A'
-const NAVY = '#1A1F36'
-const AMBER = '#f59e0b'
+const GREEN = 'var(--success)'
+const NAVY = 'var(--text)'
+const AMBER = 'var(--warning)'
 
 // ─── Duplicate detection ──────────────────────────────────────────────────────
 // A transaction is a possible duplicate only when all three signals match:
@@ -439,12 +439,12 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
     padding: '9px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
     fontSize: 13, fontWeight: active ? 600 : 400, transition: 'all 0.15s', border: 'none',
-    background: active ? NAVY : '#F0F0F0', color: active ? '#fff' : '#6b7280',
+    background: active ? 'var(--primary)' : 'var(--secondary)', color: active ? 'var(--primary-foreground)' : 'var(--text-muted)',
   })
 
   const cellInput: React.CSSProperties = {
-    fontSize: 12, border: '1px solid #E4E4E4', borderRadius: 6, padding: '4px 6px',
-    background: '#F9FAFB', color: NAVY, fontFamily: 'inherit', width: '100%',
+    fontSize: 'var(--text-micro)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 6px',
+    background: 'var(--secondary)', color: 'var(--text)', fontFamily: 'inherit', width: '100%',
   }
 
   return createPortal(
@@ -455,7 +455,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
         position: 'relative', width: '100%',
         maxWidth: step === 'summary' ? 680 : (step === 'input' && method === 'paste') ? 760 : 520,
         maxHeight: 'calc(100vh - 48px)',
-        background: '#FAFAFA', borderRadius: 16, border: '1px solid #E4E4E4',
+        background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)',
         boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
         display: 'flex', flexDirection: 'column', transition: 'max-width 0.25s',
       }}>
@@ -466,13 +466,13 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
             <h2 style={{ fontSize: 16, fontWeight: 600, color: NAVY }}>
               {step === 'input' ? 'Import Transactions' : step === 'processing' ? 'Processing…' : 'Import Summary'}
             </h2>
-            <p style={{ fontSize: 12, color: '#8A94A6', marginTop: 2 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
               {step === 'input' && 'Paste a full month of bank transactions — the app handles the rest.'}
               {step === 'processing' && (method === 'screenshot' ? 'Running on-device OCR — no data leaves your device.' : 'Parsing and auto-categorizing your transactions…')}
               {step === 'summary' && `${rows.length} transaction${rows.length !== 1 ? 's' : ''} found · ${formatCurrency(totalAmount, sym)} total`}
             </p>
           </div>
-          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #E4E4E4', background: '#F0F0F0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
             <X size={14} />
           </button>
         </div>
@@ -501,10 +501,10 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               {/* ── Paste panel ── */}
               {method === 'paste' && (
                 <>
-                  <div style={{ padding: '10px 14px', background: 'rgba(6,198,138,0.06)', border: '1px solid rgba(6,198,138,0.2)', borderRadius: 8, fontSize: 12, color: '#374151' }}>
+                  <div style={{ padding: '10px 14px', background: 'oklch(0.93 0.02 155 / 0.35)', border: '1px solid oklch(0.42 0.075 155 / 0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text)' }}>
                     <strong style={{ display: 'block', marginBottom: 3, color: NAVY }}>How to paste from your bank</strong>
                     Go to your bank's transaction history, select all rows, copy, and paste here. The app reads dates, merchants, and amounts automatically — no manual entry needed.
-                    <div style={{ marginTop: 6, fontFamily: 'monospace', fontSize: 11, color: '#6b7280', lineHeight: 1.7 }}>
+                    <div style={{ marginTop: 6, fontFamily: '"JetBrains Mono", ui-monospace, monospace', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
                       07/11/2025&nbsp;&nbsp;Starbucks&nbsp;&nbsp;$6.75&nbsp;&nbsp;$1,247.95<br />
                       Jul 10&nbsp;&nbsp;WAL-MART SUPERCENTER&nbsp;&nbsp;-54.32<br />
                       2025-07-09&nbsp;&nbsp;DOORDASH*ORDER&nbsp;&nbsp;(28.90)
@@ -518,10 +518,10 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                     rows={14}
                     style={{
                       width: '100%', boxSizing: 'border-box',
-                      fontSize: 12, fontFamily: 'monospace', lineHeight: 1.65,
+                      fontSize: 12, fontFamily: '"JetBrains Mono", ui-monospace, monospace', lineHeight: 1.65,
                       border: '1px solid #D0D5DD', borderRadius: 8,
                       padding: '10px 12px', resize: 'vertical',
-                      background: '#F9FAFB', color: NAVY, outline: 'none',
+                      background: 'var(--card)', color: NAVY, outline: 'none',
                       whiteSpace: 'pre', overflowX: 'auto', overflowY: 'auto',
                       wordBreak: 'normal', overflowWrap: 'normal',
                     }}
@@ -530,7 +530,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   />
 
                   {pastedText.trim() && (
-                    <p style={{ fontSize: 11, color: '#8A94A6', marginTop: -10 }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -10 }}>
                       {pastedText.trim().split('\n').filter(l => l.trim()).length} lines pasted
                     </p>
                   )}
@@ -547,7 +547,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               {/* ── Screenshot panel ── */}
               {method === 'screenshot' && (
                 <>
-                  <div style={{ padding: '10px 14px', background: 'rgba(6,198,138,0.06)', border: '1px solid rgba(6,198,138,0.2)', borderRadius: 8, fontSize: 12, color: '#374151' }}>
+                  <div style={{ padding: '10px 14px', background: 'oklch(0.93 0.02 155 / 0.35)', border: '1px solid oklch(0.42 0.075 155 / 0.2)', borderRadius: 8, fontSize: 12, color: 'var(--text)' }}>
                     <strong style={{ display: 'block', marginBottom: 3, color: NAVY }}>OCR screenshot import</strong>
                     Upload a screenshot of your bank's transaction list. OCR accuracy depends on image clarity — use Paste Transactions for more reliable results when copy-paste is available.
                   </div>
@@ -560,7 +560,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                     style={{
                       border: `2px dashed ${dragOver ? GREEN : imageFile ? GREEN : '#D0D5DD'}`,
                       borderRadius: 12, padding: '28px 20px', textAlign: 'center', cursor: 'pointer',
-                      background: dragOver ? 'rgba(6,198,138,0.04)' : imageFile ? 'rgba(6,198,138,0.03)' : '#F9FAFB',
+                      background: dragOver ? 'rgba(6,198,138,0.04)' : imageFile ? 'rgba(6,198,138,0.03)' : 'var(--card)',
                       transition: 'all 0.15s',
                     }}
                   >
@@ -574,10 +574,10 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                     ) : (
                       <>
                         <div style={{ width: 44, height: 44, borderRadius: 10, background: '#EBEBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                          <Camera size={20} style={{ color: '#8A94A6' }} />
+                          <Camera size={20} style={{ color: 'var(--text-dim)' }} />
                         </div>
                         <p style={{ fontSize: 14, fontWeight: 500, color: NAVY, marginBottom: 4 }}>Drop your bank screenshot here</p>
-                        <p style={{ fontSize: 12, color: '#8A94A6' }}>PNG, JPG, or WEBP · click to browse</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>PNG, JPG, or WEBP · click to browse</p>
                       </>
                     )}
                   </div>
@@ -596,13 +596,13 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
           {/* ── PROCESSING STEP ── */}
           {step === 'processing' && (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(6,198,138,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', animation: 'spin 1.2s linear infinite' }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', animation: 'spin 1.2s linear infinite' }}>
                 <RefreshCw size={22} style={{ color: GREEN }} />
               </div>
               <p style={{ fontSize: 15, fontWeight: 600, color: NAVY, marginBottom: 6 }}>
                 {method === 'screenshot' ? 'Reading your screenshot…' : 'Parsing & categorizing…'}
               </p>
-              <p style={{ fontSize: 13, color: '#8A94A6', marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 20 }}>
                 {method === 'screenshot' ? 'Running on-device OCR — no data leaves your device.' : 'Matching merchants to your budget categories automatically.'}
               </p>
               {method === 'screenshot' && ocrProgress > 0 && (
@@ -610,7 +610,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                   <div style={{ height: 6, borderRadius: 99, background: '#EBEBEB', overflow: 'hidden' }}>
                     <div style={{ height: '100%', background: GREEN, borderRadius: 99, width: `${ocrProgress}%`, transition: 'width 0.3s' }} />
                   </div>
-                  <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 6 }}>{ocrProgress}%</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>{ocrProgress}%</p>
                 </div>
               )}
               <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
@@ -631,7 +631,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                 ].map(s => (
                   <div key={s.label} style={{ background: '#fff', border: `1px solid ${s.highlight ? '#fde68a' : '#EBEBEB'}`, borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
                     <p style={{ fontSize: 22, fontWeight: 700, color: s.highlight ? AMBER : NAVY }}>{s.value}</p>
-                    <p style={{ fontSize: 11, color: '#8A94A6', marginTop: 2 }}>{s.label}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>{s.label}</p>
                   </div>
                 ))}
               </div>
@@ -639,13 +639,13 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
               {/* Weekly breakdown */}
               {weeks.length > 0 && (
                 <div style={{ background: '#fff', border: '1px solid #EBEBEB', borderRadius: 10, padding: '14px 16px' }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Weekly Breakdown</p>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Weekly Breakdown</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {weeks.map(w => {
                       const maxCount = Math.max(...weeks.map(x => x.count))
                       return (
                         <div key={w.ws} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px', gap: 10, alignItems: 'center', fontSize: 12 }}>
-                          <span style={{ color: '#6b7280' }}>{fmtDate(w.ws)}–{fmtDate(w.we)}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{fmtDate(w.ws)}–{fmtDate(w.we)}</span>
                           <div style={{ height: 6, borderRadius: 99, background: '#EBEBEB', overflow: 'hidden' }}>
                             <div style={{ height: '100%', background: GREEN, borderRadius: 99, width: `${(w.count / maxCount) * 100}%` }} />
                           </div>
@@ -675,7 +675,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                     {attentionRows.map(row => (
                       <div key={row.localId} style={{ background: '#fff', borderRadius: 8, padding: '8px 10px', border: '1px solid #fde68a' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '88px 1fr 72px 148px', gap: 8, alignItems: 'center' }}>
-                          <span style={{ fontSize: 11, color: '#6b7280' }}>{row.date}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.date}</span>
                           <div style={{ minWidth: 0 }}>
                             <p style={{ fontSize: 12, fontWeight: 500, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.description}</p>
                           </div>
@@ -683,18 +683,18 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                           {row.isDuplicate ? (
                             <div style={{ display: 'flex', gap: 5 }}>
                               <button onClick={() => updateRow(row.localId, { include: true })}
-                                style={{ flex: 1, fontSize: 11, padding: '4px 0', borderRadius: 5, border: `1px solid ${row.include ? GREEN : '#E4E4E4'}`, background: row.include ? 'rgba(6,198,138,0.1)' : '#F5F5F5', color: row.include ? GREEN : '#6b7280', cursor: 'pointer', fontFamily: 'inherit', fontWeight: row.include ? 600 : 400 }}>
+                                style={{ flex: 1, fontSize: 11, padding: '4px 0', borderRadius: 5, border: `1px solid ${row.include ? 'var(--success)' : 'var(--border)'}`, background: row.include ? 'var(--accent)' : 'var(--secondary)', color: row.include ? GREEN : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: row.include ? 600 : 400 }}>
                                 Keep
                               </button>
                               <button onClick={() => updateRow(row.localId, { include: false })}
-                                style={{ flex: 1, fontSize: 11, padding: '4px 0', borderRadius: 5, border: `1px solid ${!row.include ? '#ef4444' : '#E4E4E4'}`, background: !row.include ? 'rgba(239,68,68,0.08)' : '#F5F5F5', color: !row.include ? '#ef4444' : '#6b7280', cursor: 'pointer', fontFamily: 'inherit', fontWeight: !row.include ? 600 : 400 }}>
+                                style={{ flex: 1, fontSize: 11, padding: '4px 0', borderRadius: 5, border: `1px solid ${!row.include ? 'oklch(0.56 0.15 25 / 0.4)' : 'var(--border)'}`, background: !row.include ? 'var(--danger-dim)' : 'var(--secondary)', color: !row.include ? 'var(--destructive)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: !row.include ? 600 : 400 }}>
                                 Skip
                               </button>
                             </div>
                           ) : (
                             <select value={row.categoryId}
                               onChange={e => updateRow(row.localId, { categoryId: e.target.value })}
-                              style={{ fontSize: 11, border: '1px solid #E4E4E4', borderRadius: 5, padding: '4px 6px', background: '#F9FAFB', color: row.categoryId ? NAVY : '#9CA3AF', fontFamily: 'inherit', width: '100%' }}>
+                              style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 5, padding: '4px 6px', background: 'var(--card)', color: row.categoryId ? NAVY : 'var(--text-dim)', fontFamily: 'inherit', width: '100%' }}>
                               <option value="">Uncategorized</option>
                               {state.categories
                                 .filter(c => row.direction === 'credit' ? c.type === 'income' : c.type === 'expense')
@@ -726,30 +726,30 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                       <Check size={14} style={{ display: 'inline', color: GREEN, marginRight: 6, verticalAlign: 'middle' }} />
                       {cleanRows.length} auto-categorized transactions
                     </span>
-                    {showAllClean ? <ChevronUp size={16} color="#8A94A6" /> : <ChevronDown size={16} color="#8A94A6" />}
+                    {showAllClean ? <ChevronUp size={16} color="var(--text-dim)" /> : <ChevronDown size={16} color="var(--text-dim)" />}
                   </button>
 
                   {showAllClean && (
-                    <div style={{ borderTop: '1px solid #EBEBEB', maxHeight: 320, overflowY: 'auto' }}>
+                    <div style={{ borderTop: '1px solid var(--border)', maxHeight: 320, overflowY: 'auto' }}>
                       {/* Column header */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '32px 88px 1fr 72px 148px 28px', gap: 8, padding: '7px 12px', background: '#F9FAFB', fontSize: 10, fontWeight: 600, color: '#8A94A6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '32px 88px 1fr 72px 148px 28px', gap: 8, padding: '7px 12px', background: 'var(--card)', fontSize: 10, fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         <input type="checkbox"
                           checked={cleanRows.every(r => r.include)}
                           onChange={e => setRows(rs => rs.map(r => (!r.isDuplicate && r.categoryId) ? { ...r, include: e.target.checked } : r))}
-                          style={{ width: 14, height: 14, accentColor: GREEN, cursor: 'pointer' }} />
+                          style={{ width: 14, height: 14, accentColor: 'var(--primary)', cursor: 'pointer' }} />
                         <span>Date</span><span>Description</span><span>Amount</span><span>Category</span><span />
                       </div>
                       {cleanRows.map(row => (
-                        <div key={row.localId} style={{ display: 'grid', gridTemplateColumns: '32px 88px 1fr 72px 148px 28px', gap: 8, padding: '7px 12px', alignItems: 'center', borderTop: '1px solid #F0F0F0', opacity: row.include ? 1 : 0.4 }}>
+                        <div key={row.localId} style={{ display: 'grid', gridTemplateColumns: '32px 88px 1fr 72px 148px 28px', gap: 8, padding: '7px 12px', alignItems: 'center', borderTop: '1px solid var(--border)', opacity: row.include ? 1 : 0.4 }}>
                           <input type="checkbox" checked={row.include}
                             onChange={e => updateRow(row.localId, { include: e.target.checked })}
                             style={{ width: 14, height: 14, accentColor: GREEN, cursor: 'pointer' }} />
-                          <span style={{ fontSize: 11, color: '#6b7280' }}>{row.date}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.date}</span>
                           <span style={{ fontSize: 12, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.description}</span>
                           <span style={{ fontSize: 12, fontWeight: 500, color: NAVY }}>{sym}{row.amount}</span>
                           <select value={row.categoryId}
                             onChange={e => updateRow(row.localId, { categoryId: e.target.value })}
-                            style={{ fontSize: 11, border: '1px solid #E4E4E4', borderRadius: 5, padding: '3px 5px', background: '#F9FAFB', color: NAVY, fontFamily: 'inherit', width: '100%' }}>
+                            style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 5, padding: '3px 5px', background: 'var(--card)', color: NAVY, fontFamily: 'inherit', width: '100%' }}>
                             <option value="">Uncategorized</option>
                             {state.categories
                               .filter(c => row.direction === 'credit' ? c.type === 'income' : c.type === 'expense')
@@ -771,7 +771,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
                 <Button variant="secondary" onClick={reset}>← Start over</Button>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   {rows.filter(r => r.isDuplicate && !r.include).length > 0 && (
-                    <p style={{ fontSize: 11, color: '#8A94A6' }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                       {rows.filter(r => r.isDuplicate && !r.include).length} flagged duplicate{rows.filter(r => r.isDuplicate && !r.include).length !== 1 ? 's' : ''} will be skipped
                     </p>
                   )}

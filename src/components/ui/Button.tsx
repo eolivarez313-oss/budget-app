@@ -10,7 +10,7 @@ export function Button({ variant = 'primary', size = 'md', children, style, disa
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     gap: 6, fontWeight: 500, borderRadius: 9999, cursor: disabled ? 'not-allowed' : 'pointer',
-    border: '1px solid transparent', fontFamily: '"Inter", system-ui, sans-serif',
+    border: '1px solid transparent',
     whiteSpace: 'nowrap',
     transition: 'background 0.15s, transform 0.1s, opacity 0.15s, box-shadow 0.15s',
     letterSpacing: '0.01em',

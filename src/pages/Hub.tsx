@@ -234,10 +234,10 @@ function CreateCard({ onClick }: { onClick: () => void }) {
         <Plus size={18} color="var(--text-muted)" />
       </div>
       <div style={{ textAlign: 'center' }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 3, fontFamily: '"Inter", system-ui, sans-serif' }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 3, fontFamily: 'inherit' }}>
           Create new budget
         </p>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: '"Inter", system-ui, sans-serif' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'inherit' }}>
           Envelope, goal, or shared pool
         </p>
       </div>
@@ -299,7 +299,7 @@ export function Hub() {
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '6px 14px 6px 8px', borderRadius: 9999,
             background: 'var(--secondary)', border: '1px solid var(--border)',
-            cursor: 'pointer', fontFamily: '"Inter", system-ui, sans-serif',
+            cursor: 'pointer', fontFamily: 'inherit',
             transition: 'background 0.15s',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--muted)' }}
