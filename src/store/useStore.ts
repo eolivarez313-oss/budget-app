@@ -35,6 +35,8 @@ type WorkspaceAction =
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'SAVE_MERCHANT_RULE'; payload: { key: string; categoryId: string } }
   | { type: 'DELETE_MERCHANT_RULE'; payload: string }
+  | { type: 'SET_DAY_OVERRIDE'; payload: { date: string; hours: number } }
+  | { type: 'REMOVE_DAY_OVERRIDE'; payload: string }
   | { type: 'RESET' }
 
 type RootAction =
@@ -49,7 +51,7 @@ type RootAction =
 
 export type Action = WorkspaceAction | RootAction
 
-// ── Workspace-level reducer ──────────────────────────────────────────────────
+// ── Workspace reducer ─────────────────────────────────────────────────────────
 
 function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
   switch (action.type) {
@@ -76,9 +78,14 @@ function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
     case 'UPDATE_SETTINGS': return { ...ws, settings: { ...ws.settings, ...action.payload } }
     case 'SAVE_MERCHANT_RULE': return { ...ws, merchantRules: { ...ws.merchantRules, [action.payload.key]: action.payload.categoryId } }
     case 'DELETE_MERCHANT_RULE': {
-      const rules = { ...ws.merchantRules }
-      delete rules[action.payload]
+      const rules = { ...ws.merchantRules }; delete rules[action.payload]
       return { ...ws, merchantRules: rules }
+    }
+    case 'SET_DAY_OVERRIDE':
+      return { ...ws, dayOverrides: { ...ws.dayOverrides, [action.payload.date]: action.payload.hours } }
+    case 'REMOVE_DAY_OVERRIDE': {
+      const overrides = { ...ws.dayOverrides }; delete overrides[action.payload]
+      return { ...ws, dayOverrides: overrides }
     }
     case 'RESET': return { ...makeWorkspace(getInitialData(), ws.id, ws.name, ws.type) }
     default: return ws
@@ -94,10 +101,7 @@ function rootReducer(root: RootState, action: Action): RootState {
     case 'SWITCH_WORKSPACE': return { ...root, activeWorkspaceId: action.payload }
     case 'DELETE_WORKSPACE': {
       const remaining = root.workspaces.filter(w => w.id !== action.payload)
-      const newActive = root.activeWorkspaceId === action.payload
-        ? (remaining[0]?.id ?? root.activeWorkspaceId)
-        : root.activeWorkspaceId
-      return { ...root, workspaces: remaining, activeWorkspaceId: newActive }
+      return { ...root, workspaces: remaining, activeWorkspaceId: root.activeWorkspaceId === action.payload ? (remaining[0]?.id ?? root.activeWorkspaceId) : root.activeWorkspaceId }
     }
     case 'UPDATE_WORKSPACE_NAME':
       return { ...root, workspaces: root.workspaces.map(w => w.id === action.payload.id ? { ...w, name: action.payload.name } : w) }
@@ -112,9 +116,7 @@ function rootReducer(root: RootState, action: Action): RootState {
         workspaces: root.workspaces.map(w => {
           if (w.id !== root.activeWorkspaceId) return w
           const updated = workspaceReducer(w, action as WorkspaceAction)
-          if (action.type === 'UPDATE_SETTINGS' && (action as any).payload?.name) {
-            return { ...updated, name: (action as any).payload.name }
-          }
+          if (action.type === 'UPDATE_SETTINGS' && (action as any).payload?.name) return { ...updated, name: (action as any).payload.name }
           return updated
         }),
       }
@@ -134,11 +136,7 @@ export function makeWorkspace(
 
 function dedup<T extends { id: string }>(arr: T[]): T[] {
   const seen = new Set<string>()
-  return (arr || []).filter(item => {
-    if (seen.has(item.id)) return false
-    seen.add(item.id)
-    return true
-  })
+  return (arr || []).filter(item => { if (seen.has(item.id)) return false; seen.add(item.id); return true })
 }
 
 function dedupWorkspace(ws: Workspace): Workspace {
@@ -147,22 +145,17 @@ function dedupWorkspace(ws: Workspace): Workspace {
     const old = JSON.parse(localStorage.getItem('budget_categorize_v2') || '{}') as Record<string, { categoryId: string }>
     for (const [k, v] of Object.entries(old)) {
       const base = k.replace(/\|.*$/, '')
-      if (base && v.categoryId && !merchantRules[base]) {
-        merchantRules = { ...merchantRules, [base]: v.categoryId }
-      }
+      if (base && v.categoryId && !merchantRules[base]) merchantRules = { ...merchantRules, [base]: v.categoryId }
     }
     if (Object.keys(old).length > 0) localStorage.removeItem('budget_categorize_v2')
   } catch {}
   return {
     ...ws,
-    accounts: dedup(ws.accounts),
-    transactions: dedup(ws.transactions),
-    categories: dedup(ws.categories),
-    budgets: dedup(ws.budgets),
-    goals: dedup(ws.goals),
-    netWorthHistory: dedup(ws.netWorthHistory),
-    subscriptions: dedup(ws.subscriptions),
-    merchantRules,
+    accounts: dedup(ws.accounts), transactions: dedup(ws.transactions),
+    categories: dedup(ws.categories), budgets: dedup(ws.budgets),
+    goals: dedup(ws.goals), netWorthHistory: dedup(ws.netWorthHistory),
+    subscriptions: dedup(ws.subscriptions), merchantRules,
+    dayOverrides: ws.dayOverrides ?? {},
   }
 }
 
@@ -172,13 +165,7 @@ function migrateToRootState(appState: AppState): RootState {
   return {
     activeWorkspaceId: wsId,
     profile: { name: profileName },
-    workspaces: [
-      dedupWorkspace(makeWorkspace(
-        appState, wsId,
-        profileName ? `${profileName}'s Budget` : 'Personal Budget',
-        'personal',
-      )),
-    ],
+    workspaces: [dedupWorkspace(makeWorkspace(appState, wsId, profileName ? `${profileName}'s Budget` : 'Personal Budget', 'personal'))],
   }
 }
 
@@ -188,23 +175,18 @@ const LEGACY_KEY = 'budget_app_v1'
 
 function loadFromStorage(userId: string): RootState | null {
   try {
-    // Try user-scoped key first
     const userRaw = localStorage.getItem(storageKey(userId))
     if (userRaw) {
       const parsed = JSON.parse(userRaw) as RootState
       return { ...parsed, workspaces: parsed.workspaces.map(dedupWorkspace) }
     }
-    // Check for pre-auth legacy data to migrate
     const rootRaw = localStorage.getItem(LEGACY_ROOT_KEY)
     if (rootRaw) {
       const parsed = JSON.parse(rootRaw) as RootState
       return { ...parsed, workspaces: parsed.workspaces.map(dedupWorkspace) }
     }
     const legacyRaw = localStorage.getItem(LEGACY_KEY)
-    if (legacyRaw) {
-      const legacy = JSON.parse(legacyRaw) as AppState
-      return migrateToRootState(legacy)
-    }
+    if (legacyRaw) return migrateToRootState(JSON.parse(legacyRaw) as AppState)
   } catch {}
   return null
 }
@@ -224,7 +206,8 @@ function syncToSupabase(action: Action, activeWorkspace: Workspace, userId: stri
     case 'ADD_NET_WORTH_ENTRY': db.upsertNetWorthEntry(action.payload, userId); break
     case 'ADD_SUBSCRIPTION': case 'UPDATE_SUBSCRIPTION': db.upsertSubscription(action.payload, userId); break
     case 'DELETE_SUBSCRIPTION': db.deleteSubscription(action.payload); break
-    case 'UPDATE_SETTINGS': db.saveSettings(activeWorkspace.settings, userId); break
+    case 'UPDATE_SETTINGS': db.saveSettings(activeWorkspace.settings, userId, activeWorkspace.dayOverrides); break
+    case 'SET_DAY_OVERRIDE': case 'REMOVE_DAY_OVERRIDE': db.saveDayOverrides(activeWorkspace.dayOverrides, userId); break
     case 'RESET': db.seedDatabase(activeWorkspace, userId); break
   }
 }
@@ -232,20 +215,13 @@ function syncToSupabase(action: Action, activeWorkspace: Workspace, userId: stri
 // ── Context ──────────────────────────────────────────────────────────────────
 
 const EMPTY_WS: Workspace = makeWorkspace(
-  {
-    accounts: [], transactions: [], categories: [], budgets: [],
-    goals: [], netWorthHistory: [], subscriptions: [],
+  { accounts: [], transactions: [], categories: [], budgets: [], goals: [], netWorthHistory: [], subscriptions: [],
     settings: { currency: 'USD', currencySymbol: '$', theme: 'dark', name: '', dashboardWidgets: [] },
-    merchantRules: {},
-  },
+    merchantRules: {}, dayOverrides: {} },
   'personal', 'Personal Budget', 'personal',
 )
 
-const EMPTY_ROOT: RootState = {
-  workspaces: [EMPTY_WS],
-  activeWorkspaceId: 'personal',
-  profile: { name: '' },
-}
+const EMPTY_ROOT: RootState = { workspaces: [EMPTY_WS], activeWorkspaceId: 'personal', profile: { name: '' } }
 
 interface StoreContextType {
   state: AppState
@@ -267,44 +243,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // Watch auth state and load user data when authenticated
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        loadUserData(session.user.id)
-      } else {
-        setLoading(false)
-      }
+      if (session?.user) loadUserData(session.user.id)
+      else setLoading(false)
     })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUserId(session.user.id)
-        loadUserData(session.user.id)
-      } else {
-        setUserId(null)
-        rootDispatch({ type: 'SET_ROOT_STATE', payload: EMPTY_ROOT })
-        setLoading(false)
-      }
+      if (session?.user) { setUserId(session.user.id); loadUserData(session.user.id) }
+      else { setUserId(null); rootDispatch({ type: 'SET_ROOT_STATE', payload: EMPTY_ROOT }); setLoading(false) }
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
   async function loadUserData(uid: string) {
-    setLoading(true)
-    setUserId(uid)
-
+    setLoading(true); setUserId(uid)
     const stored = loadFromStorage(uid)
     if (stored) {
       rootDispatch({ type: 'SET_ROOT_STATE', payload: stored })
-      // Migrate any pre-auth legacy data to this user's account
       await migrateLegacyData(uid, stored)
       setLoading(false)
       return
     }
-
-    // No local data → try Supabase
     try {
       const remote = await db.loadState(uid)
       if (remote && remote.accounts.length > 0) {
@@ -321,29 +280,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }
 
-  // One-time migration: stamp pre-auth data with this user's ID in Supabase
   async function migrateLegacyData(uid: string, state: RootState) {
     const hadLegacy = !!localStorage.getItem(LEGACY_ROOT_KEY) || !!localStorage.getItem(LEGACY_KEY)
     if (!hadLegacy) return
     try {
-      for (const ws of state.workspaces) {
-        await db.seedDatabase(ws, uid)
-      }
-      localStorage.removeItem(LEGACY_ROOT_KEY)
-      localStorage.removeItem(LEGACY_KEY)
+      for (const ws of state.workspaces) await db.seedDatabase(ws, uid)
+      localStorage.removeItem(LEGACY_ROOT_KEY); localStorage.removeItem(LEGACY_KEY)
     } catch {}
   }
 
-  // Persist to user-scoped localStorage
   useEffect(() => {
     if (!loading && userId) {
       try { localStorage.setItem(storageKey(userId), JSON.stringify(rootState)) } catch {}
     }
   }, [rootState, loading, userId])
 
-  const activeWorkspace = rootState.workspaces.find(w => w.id === rootState.activeWorkspaceId)
-    ?? rootState.workspaces[0]
-    ?? EMPTY_WS
+  const activeWorkspace = rootState.workspaces.find(w => w.id === rootState.activeWorkspaceId) ?? rootState.workspaces[0] ?? EMPTY_WS
 
   function wrappedDispatch(action: Action) {
     rootDispatch(action)
@@ -355,12 +307,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const ctx: StoreContextType = {
-    state: activeWorkspace as AppState,
-    dispatch: wrappedDispatch,
-    loading,
-    workspaces: rootState.workspaces,
-    activeWorkspaceId: rootState.activeWorkspaceId,
-    profile: rootState.profile,
+    state: activeWorkspace as AppState, dispatch: wrappedDispatch, loading,
+    workspaces: rootState.workspaces, activeWorkspaceId: rootState.activeWorkspaceId, profile: rootState.profile,
     switchWorkspace: (id) => wrappedDispatch({ type: 'SWITCH_WORKSPACE', payload: id }),
     createWorkspace: (ws) => wrappedDispatch({ type: 'CREATE_WORKSPACE', payload: ws }),
     deleteWorkspace: (id) => wrappedDispatch({ type: 'DELETE_WORKSPACE', payload: id }),

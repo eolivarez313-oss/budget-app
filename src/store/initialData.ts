@@ -149,5 +149,6 @@ export function getInitialData(): AppState {
       dashboardWidgets: ['stats', 'health', 'budgets', 'insights', 'cashflow', 'spending', 'upcoming', 'recent'],
     },
     merchantRules: {},
+    dayOverrides: {},
   }
 }

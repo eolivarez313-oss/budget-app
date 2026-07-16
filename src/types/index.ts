@@ -80,6 +80,8 @@ export interface Subscription {
   transactionIds: string[]
 }
 
+export type WorkDay = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'
+
 export interface AppSettings {
   currency: string
   currencySymbol: string
@@ -90,9 +92,13 @@ export interface AppSettings {
   monthlySavings?: number
   payFrequency?: 'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'
   paycheckAmount?: number
+  paycheckDay?: string       // 'Mon'–'Sun' for weekly/biweekly, '1'–'28' for monthly
+  hourlyRate?: number
+  workDays?: WorkDay[]       // e.g. ['Mon','Tue','Wed','Thu','Fri']
+  hoursPerDay?: number
 }
 
-// Legacy single-workspace state (kept for backward compat / AppState within a Workspace)
+// Legacy single-workspace state
 export interface AppState {
   accounts: Account[]
   transactions: Transaction[]
@@ -103,6 +109,7 @@ export interface AppState {
   subscriptions: Subscription[]
   settings: AppSettings
   merchantRules: Record<string, string>
+  dayOverrides: Record<string, number>   // 'YYYY-MM-DD' → hours worked that day
 }
 
 // ── Multi-workspace additions ────────────────────────────────────────────────
@@ -110,7 +117,7 @@ export interface AppState {
 export interface UserProfile {
   name: string
   avatarUrl?: string
-  myContributorId?: string   // which Contributor in the active household workspace is "me"
+  myContributorId?: string
 }
 
 export type PayFrequency = 'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'

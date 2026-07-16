@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Home, LayoutDashboard, ArrowLeftRight, PieChart, Target, TrendingUp,
   CreditCard, BarChart3, RefreshCw, Settings, Activity,
-  ChevronDown, Plus, Check, User, Waves, ChevronsLeft, ChevronsRight, LogOut,
+  ChevronDown, Plus, Check, User, Waves, ChevronsLeft, ChevronsRight, LogOut, CalendarDays,
 } from 'lucide-react'
 import { useStore } from '../../store/useStore'
 import { useAuth } from '../../lib/auth'
@@ -14,6 +14,7 @@ const nav = [
   { to: '/budgets',       icon: PieChart,        label: 'Budget'       },
   { to: '/transactions',  icon: ArrowLeftRight,  label: 'Transactions' },
   { to: '/analysis',      icon: Activity,        label: 'Analysis'     },
+  { to: '/calendar',      icon: CalendarDays,    label: 'Calendar'     },
   { to: '/flow',          icon: Waves,           label: 'Flow'         },
   { to: '/goals',         icon: Target,          label: 'Goals'        },
   { to: '/accounts',      icon: CreditCard,      label: 'Accounts'     },

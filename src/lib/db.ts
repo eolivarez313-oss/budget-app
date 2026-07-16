@@ -62,7 +62,13 @@ export async function loadState(userId: string): Promise<AppState | null> {
   const s = settingsRow.data
   const settings: AppSettings = s ? {
     currency: s.currency, currencySymbol: s.currency_symbol,
-    theme: s.theme, name: s.name, dashboardWidgets: s.dashboard_widgets,
+    theme: s.theme, name: s.name, dashboardWidgets: s.dashboard_widgets ?? [],
+    monthlyIncome: s.monthly_income ? Number(s.monthly_income) : undefined,
+    payFrequency: s.pay_frequency ?? undefined,
+    paycheckDay: s.paycheck_day ?? undefined,
+    hourlyRate: s.hourly_rate ? Number(s.hourly_rate) : undefined,
+    workDays: s.work_days ?? undefined,
+    hoursPerDay: s.hours_per_day ? Number(s.hours_per_day) : undefined,
   } : { currency: 'USD', currencySymbol: '$', theme: 'dark', name: 'My Budget', dashboardWidgets: [] }
 
   return {
@@ -75,10 +81,13 @@ export async function loadState(userId: string): Promise<AppState | null> {
     subscriptions: (subscriptions.data || []).map(mapSubscription),
     settings,
     merchantRules: {},
+    dayOverrides: (s?.day_overrides && typeof s.day_overrides === 'object' && !Array.isArray(s.day_overrides))
+      ? s.day_overrides as Record<string, number>
+      : {},
   }
 }
 
-// ── Writers (all require userId) ──────────────────────────────────────────────
+// ── Writers ───────────────────────────────────────────────────────────────────
 
 export async function upsertAccount(a: Account, userId: string) {
   await supabase.from('accounts').upsert({
@@ -162,11 +171,25 @@ export async function deleteSubscription(id: string) {
   await supabase.from('subscriptions').delete().eq('id', id)
 }
 
-export async function saveSettings(s: AppSettings, userId: string) {
+export async function saveSettings(s: AppSettings, userId: string, dayOverrides?: Record<string, number>) {
   await supabase.from('app_settings').upsert({
     user_id: userId,
     currency: s.currency, currency_symbol: s.currencySymbol,
     theme: s.theme, name: s.name, dashboard_widgets: s.dashboardWidgets,
+    monthly_income: s.monthlyIncome ?? null,
+    pay_frequency: s.payFrequency ?? null,
+    paycheck_day: s.paycheckDay ?? null,
+    hourly_rate: s.hourlyRate ?? null,
+    work_days: s.workDays ?? null,
+    hours_per_day: s.hoursPerDay ?? null,
+    day_overrides: dayOverrides ?? {},
+  }, { onConflict: 'user_id' })
+}
+
+export async function saveDayOverrides(overrides: Record<string, number>, userId: string) {
+  await supabase.from('app_settings').upsert({
+    user_id: userId,
+    day_overrides: overrides,
   }, { onConflict: 'user_id' })
 }
 
@@ -181,6 +204,6 @@ export async function seedDatabase(state: AppState, userId: string) {
     ...state.goals.map(g => upsertGoal(g, userId)),
     ...state.netWorthHistory.map(e => upsertNetWorthEntry(e, userId)),
     ...state.subscriptions.map(s => upsertSubscription(s, userId)),
-    saveSettings(state.settings, userId),
+    saveSettings(state.settings, userId, state.dayOverrides),
   ])
 }

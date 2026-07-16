@@ -19,12 +19,13 @@ import { Profile } from './pages/Profile'
 import { WorkspaceCreate } from './pages/WorkspaceCreate'
 import { Hub } from './pages/Hub'
 import { Flow } from './pages/Flow'
+import { Calendar } from './pages/Calendar'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword } from './pages/ForgotPassword'
 import { ResetPassword } from './pages/ResetPassword'
 
-const ONBOARDING_KEY = 'budget_onboarding_done'
+const ONBOARDING_KEY = (userId: string) => `budget_onboarding_done_${userId}`
 const HUB_ROUTES = ['/hub', '/workspace/new']
 
 // ── Loading spinner (shared) ─────────────────────────────────────────────────
@@ -75,18 +76,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { loading } = useStore()
+  const { user } = useAuth()
   const location = useLocation()
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
-    if (!loading) {
-      const done = localStorage.getItem(ONBOARDING_KEY)
+    if (!loading && user) {
+      const done = localStorage.getItem(ONBOARDING_KEY(user.id))
       if (!done) setShowOnboarding(true)
     }
-  }, [loading])
+  }, [loading, user])
 
   function completeOnboarding() {
-    localStorage.setItem(ONBOARDING_KEY, '1')
+    if (user) localStorage.setItem(ONBOARDING_KEY(user.id), '1')
     setShowOnboarding(false)
   }
 
@@ -122,6 +124,7 @@ function AppRoutes() {
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/flow" element={<Flow />} />
+          <Route path="/calendar" element={<Calendar />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<Profile />} />
