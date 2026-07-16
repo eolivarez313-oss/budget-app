@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Check, X } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -10,9 +10,7 @@ function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-interface PasswordReq { label: string; met: boolean }
-
-function passwordRequirements(pw: string): PasswordReq[] {
+function passwordRequirements(pw: string) {
   return [
     { label: 'At least 8 characters', met: pw.length >= 8 },
     { label: 'At least one letter', met: /[a-zA-Z]/.test(pw) },
@@ -20,81 +18,191 @@ function passwordRequirements(pw: string): PasswordReq[] {
   ]
 }
 
-function isPasswordValid(pw: string) {
-  return passwordRequirements(pw).every(r => r.met)
-}
+// ── OTP entry screen ──────────────────────────────────────────────────────────
 
-interface CheckEmailProps {
+const OTP_EXPIRY_SECONDS = 600 // 10 minutes
+
+interface OtpScreenProps {
   email: string
+  onVerify: (token: string) => Promise<{ error: string | null }>
   onResend: () => Promise<void>
 }
 
-function CheckEmailScreen({ email, onResend }: CheckEmailProps) {
+function OtpScreen({ email, onVerify, onResend }: OtpScreenProps) {
+  const [digits, setDigits] = useState(['', '', '', '', '', ''])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const [cooldown, setCooldown] = useState(0)
-  const [msg, setMsg] = useState('')
+  const [resendMsg, setResendMsg] = useState('')
+  const [expiry, setExpiry] = useState(OTP_EXPIRY_SECONDS)
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
+  // Countdown to expiry
+  useEffect(() => {
+    if (expiry <= 0) return
+    const t = setTimeout(() => setExpiry(e => e - 1), 1000)
+    return () => clearTimeout(t)
+  }, [expiry])
+
+  // Resend cooldown countdown
   useEffect(() => {
     if (cooldown <= 0) return
     const t = setTimeout(() => setCooldown(c => c - 1), 1000)
     return () => clearTimeout(t)
   }, [cooldown])
 
+  function formatExpiry(s: number) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${String(sec).padStart(2, '0')}`
+  }
+
+  function handleDigitChange(i: number, value: string) {
+    // Only keep last character, must be digit
+    const char = value.replace(/\D/g, '').slice(-1)
+    const next = [...digits]
+    next[i] = char
+    setDigits(next)
+    setError('')
+    if (char && i < 5) {
+      inputRefs.current[i + 1]?.focus()
+    }
+  }
+
+  function handleKeyDown(i: number, e: React.KeyboardEvent) {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      inputRefs.current[i - 1]?.focus()
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!pasted) return
+    const next = [...digits]
+    for (let i = 0; i < 6; i++) next[i] = pasted[i] ?? ''
+    setDigits(next)
+    inputRefs.current[Math.min(pasted.length, 5)]?.focus()
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const token = digits.join('')
+    if (token.length < 6) { setError('Please enter all 6 digits.'); return }
+    setLoading(true)
+    setError('')
+    const { error } = await onVerify(token)
+    setLoading(false)
+    if (error) setError(error)
+  }
+
   async function handleResend() {
     if (cooldown > 0) return
+    setError('')
     await onResend()
-    setMsg('Email resent!')
+    setResendMsg('New code sent!')
     setCooldown(60)
+    setExpiry(OTP_EXPIRY_SECONDS)
+    setDigits(['', '', '', '', '', ''])
+    inputRefs.current[0]?.focus()
+    setTimeout(() => setResendMsg(''), 4000)
   }
+
+  const allFilled = digits.every(d => d !== '')
 
   return (
     <AuthLayout
       title="Check your email"
-      subtitle={`We sent a verification link to ${email}`}
+      subtitle={`We sent a 6-digit code to ${email}`}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Expiry notice */}
         <div style={{
-          width: 56, height: 56, borderRadius: '50%',
-          background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          textAlign: 'center', fontSize: 'var(--text-micro)',
+          color: expiry < 120 ? 'var(--danger)' : 'var(--text-muted)',
+          transition: 'color 0.3s',
         }}>
-          <span style={{ fontSize: 24 }}>✉️</span>
+          {expiry > 0
+            ? `Code expires in ${formatExpiry(expiry)}`
+            : 'Code expired — please request a new one below'}
         </div>
 
-        <div style={{ fontSize: 'var(--text-label)', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-          <p>Click the link in the email to verify your account.</p>
-          <p style={{ marginTop: 8 }}>Can't find it? Check your spam folder.</p>
+        {/* 6-digit boxes */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={el => { inputRefs.current[i] = el }}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={1}
+              value={d}
+              onChange={e => handleDigitChange(i, e.target.value)}
+              onKeyDown={e => handleKeyDown(i, e)}
+              onPaste={i === 0 ? handlePaste : undefined}
+              autoFocus={i === 0}
+              style={{
+                width: 44, height: 52, textAlign: 'center',
+                fontSize: 22, fontWeight: 700, fontFamily: '"Fraunces", serif',
+                borderRadius: 10,
+                border: `1.5px solid ${error ? 'var(--danger)' : d ? 'var(--primary)' : 'var(--border)'}`,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+                transition: 'border-color 0.15s',
+              }}
+            />
+          ))}
         </div>
 
-        <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-          <p style={{ fontSize: 'var(--text-label)', color: 'var(--text-muted)', marginBottom: 10 }}>
-            Didn't receive it?
-          </p>
+        {error && (
+          <div style={{
+            background: 'var(--danger-dim)', border: '1px solid oklch(0.56 0.15 25 / 0.2)',
+            borderRadius: 'var(--r-md)', padding: '10px 14px',
+            fontSize: 'var(--text-label)', color: 'var(--danger)', textAlign: 'center',
+          }}>
+            {error}
+          </div>
+        )}
+
+        <Button type="submit" disabled={loading || !allFilled || expiry <= 0} style={{ width: '100%' }}>
+          {loading ? 'Verifying…' : 'Verify email'}
+        </Button>
+
+        {/* Resend */}
+        <div style={{ textAlign: 'center', fontSize: 'var(--text-label)', color: 'var(--text-muted)' }}>
+          Didn't receive it?{' '}
           <button
+            type="button"
             onClick={handleResend}
             disabled={cooldown > 0}
             style={{
-              fontSize: 'var(--text-label)', color: 'var(--primary)', fontWeight: 500,
               background: 'none', border: 'none', cursor: cooldown > 0 ? 'default' : 'pointer',
+              color: 'var(--primary)', fontWeight: 500, fontSize: 'var(--text-label)',
               opacity: cooldown > 0 ? 0.5 : 1,
             }}
           >
-            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend verification email'}
+            {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
           </button>
-          {msg && <p style={{ fontSize: 'var(--text-micro)', color: 'var(--success)', marginTop: 6 }}>{msg}</p>}
+          {resendMsg && <span style={{ color: 'var(--success)', marginLeft: 6 }}>{resendMsg}</span>}
         </div>
 
-        <p style={{ fontSize: 'var(--text-label)', color: 'var(--text-muted)' }}>
-          Already verified?{' '}
-          <Link to="/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
-            Sign in
+        <p style={{ textAlign: 'center', fontSize: 'var(--text-label)', color: 'var(--text-muted)' }}>
+          Wrong email?{' '}
+          <Link to="/signup" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+            Go back
           </Link>
         </p>
-      </div>
+      </form>
     </AuthLayout>
   )
 }
 
+// ── Signup form ───────────────────────────────────────────────────────────────
+
 export function Signup() {
-  const { signUp, resendVerification, user } = useAuth()
+  const { signUp, verifyOtp, resendVerification, user } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -105,7 +213,7 @@ export function Signup() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
+  const [awaitingOtp, setAwaitingOtp] = useState(false)
 
   useEffect(() => {
     if (user) navigate('/hub', { replace: true })
@@ -113,17 +221,14 @@ export function Signup() {
 
   const emailError = emailTouched && email && !validateEmail(email) ? 'Please enter a valid email address.' : ''
   const reqs = passwordRequirements(password)
-  const passwordValid = isPasswordValid(password)
+  const passwordValid = reqs.every(r => r.met)
   const confirmError = confirm && password !== confirm ? 'Passwords do not match.' : ''
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setEmailTouched(true)
     setError('')
-
-    if (!validateEmail(email)) return
-    if (!passwordValid) return
-    if (password !== confirm) return
+    if (!validateEmail(email) || !passwordValid || password !== confirm) return
 
     setLoading(true)
     const { error, needsVerification } = await signUp(email, password)
@@ -133,22 +238,17 @@ export function Signup() {
       setError('An account with this email already exists.')
       return
     }
-    if (error) {
-      setError(error)
-      return
-    }
-    if (needsVerification) {
-      setDone(true)
-    } else {
-      navigate('/hub', { replace: true })
-    }
+    if (error) { setError(error); return }
+    if (needsVerification) setAwaitingOtp(true)
+    else navigate('/hub', { replace: true })
   }
 
-  if (done) {
+  if (awaitingOtp) {
     return (
-      <CheckEmailScreen
+      <OtpScreen
         email={email}
-        onResend={async () => { await resendVerification(email) }}
+        onVerify={token => verifyOtp(email, token, 'signup')}
+        onResend={() => resendVerification(email).then(() => {})}
       />
     )
   }
@@ -204,15 +304,11 @@ export function Signup() {
             </div>
           </Field>
 
-          {/* Live password requirements */}
           {password.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 2 }}>
               {reqs.map(req => (
                 <div key={req.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {req.met
-                    ? <Check size={12} color="var(--success)" />
-                    : <X size={12} color="var(--text-dim)" />
-                  }
+                  {req.met ? <Check size={12} color="var(--success)" /> : <X size={12} color="var(--text-dim)" />}
                   <span style={{
                     fontSize: 'var(--text-micro)',
                     color: req.met ? 'var(--success)' : 'var(--text-dim)',

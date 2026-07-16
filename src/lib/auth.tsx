@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsVerification: boolean }>
   signOut: () => Promise<void>
+  verifyOtp: (email: string, token: string, type: 'signup' | 'recovery') => Promise<{ error: string | null }>
   sendPasswordReset: (email: string) => Promise<{ error: string | null }>
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>
   updateEmail: (newEmail: string) => Promise<{ error: string | null }>
@@ -62,11 +63,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { error: error.message, needsVerification: false }
     }
-    // If identities is empty, the email already exists (Supabase returns success but no identity)
     if (data.user && data.user.identities?.length === 0) {
       return { error: 'EMAIL_EXISTS', needsVerification: false }
     }
     return { error: null, needsVerification: true }
+  }
+
+  async function verifyOtp(email: string, token: string, type: 'signup' | 'recovery'): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.verifyOtp({ email, token, type })
+    if (!error) return { error: null }
+    if (error.message.includes('expired') || error.message.includes('Token has expired')) {
+      return { error: 'This code has expired. Please request a new one.' }
+    }
+    if (error.message.includes('invalid') || error.message.includes('Invalid')) {
+      return { error: 'Incorrect code. Please check your email and try again.' }
+    }
+    return { error: error.message }
   }
 
   async function signOut(): Promise<void> {
@@ -74,9 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function sendPasswordReset(email: string): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
+    // No redirectTo — Supabase sends a 6-digit OTP code (configured in Auth > Email Templates)
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
     return { error: error?.message ?? null }
   }
 
@@ -97,10 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function deleteAccount(): Promise<{ error: string | null }> {
     if (!user) return { error: 'Not authenticated' }
-    // Delete all user data first, then the account via edge function / admin API
-    // Since we can't call admin API from client, we use a Supabase RPC or soft-delete approach.
-    // Here we sign out and cascade delete happens via RLS/FK when admin deletes the auth user.
-    // For now, we clear all data and sign out — full hard-delete requires a server function.
     const uid = user.id
     await Promise.allSettled([
       supabase.from('transactions').delete().eq('user_id', uid),
@@ -112,9 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ])
     await supabase.from('accounts').delete().eq('user_id', uid)
     await supabase.from('categories').delete().eq('user_id', uid)
-    // Clear local storage for this user
     localStorage.removeItem(`budget_root_v1_${uid}`)
-    localStorage.removeItem('budget_onboarding_done')
     await supabase.auth.signOut()
     return { error: null }
   }
@@ -122,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ctx: AuthContextType = {
     user, session, loading,
     signIn, signUp, signOut,
+    verifyOtp,
     sendPasswordReset, updatePassword, updateEmail,
     resendVerification, deleteAccount,
   }
