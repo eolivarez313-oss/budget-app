@@ -8,6 +8,7 @@ import { getInitialData } from './initialData'
 import * as db from '../lib/db'
 import { uuid } from '../utils/uuid'
 import { supabase } from '../lib/supabase'
+import { merchantKey } from '../utils/categorize'
 
 // ── Action union ─────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ type WorkspaceAction =
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'SAVE_MERCHANT_RULE'; payload: { key: string; categoryId: string } }
   | { type: 'DELETE_MERCHANT_RULE'; payload: string }
+  | { type: 'SAVE_REIMBURSEMENT_RULE'; payload: string }
+  | { type: 'DELETE_REIMBURSEMENT_RULE'; payload: string }
   | { type: 'SET_DAY_OVERRIDE'; payload: { date: string; hours: number } }
   | { type: 'REMOVE_DAY_OVERRIDE'; payload: string }
   | { type: 'RESET' }
@@ -59,7 +62,13 @@ function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
     case 'ADD_ACCOUNT': return { ...ws, accounts: [...ws.accounts, action.payload] }
     case 'UPDATE_ACCOUNT': return { ...ws, accounts: ws.accounts.map(a => a.id === action.payload.id ? action.payload : a) }
     case 'DELETE_ACCOUNT': return { ...ws, accounts: ws.accounts.filter(a => a.id !== action.payload) }
-    case 'ADD_TRANSACTION': return { ...ws, transactions: [action.payload, ...ws.transactions] }
+    case 'ADD_TRANSACTION': {
+      const tx = action.payload
+      const rr = ws.reimbursementRules ?? {}
+      const mKey = merchantKey(tx.description)
+      const autoReimbursement = !tx.isReimbursement && rr[mKey] ? true : tx.isReimbursement
+      return { ...ws, transactions: [{ ...tx, isReimbursement: autoReimbursement }, ...ws.transactions] }
+    }
     case 'UPDATE_TRANSACTION': return { ...ws, transactions: ws.transactions.map(t => t.id === action.payload.id ? action.payload : t) }
     case 'DELETE_TRANSACTION': return { ...ws, transactions: ws.transactions.filter(t => t.id !== action.payload) }
     case 'ADD_CATEGORY': return { ...ws, categories: [...ws.categories, action.payload] }
@@ -80,6 +89,11 @@ function workspaceReducer(ws: Workspace, action: WorkspaceAction): Workspace {
     case 'DELETE_MERCHANT_RULE': {
       const rules = { ...ws.merchantRules }; delete rules[action.payload]
       return { ...ws, merchantRules: rules }
+    }
+    case 'SAVE_REIMBURSEMENT_RULE': return { ...ws, reimbursementRules: { ...(ws.reimbursementRules ?? {}), [action.payload]: true } }
+    case 'DELETE_REIMBURSEMENT_RULE': {
+      const rr = { ...(ws.reimbursementRules ?? {}) }; delete rr[action.payload]
+      return { ...ws, reimbursementRules: rr }
     }
     case 'SET_DAY_OVERRIDE':
       return { ...ws, dayOverrides: { ...ws.dayOverrides, [action.payload.date]: action.payload.hours } }
@@ -155,6 +169,7 @@ function dedupWorkspace(ws: Workspace): Workspace {
     categories: dedup(ws.categories), budgets: dedup(ws.budgets),
     goals: dedup(ws.goals), netWorthHistory: dedup(ws.netWorthHistory),
     subscriptions: dedup(ws.subscriptions), merchantRules,
+    reimbursementRules: ws.reimbursementRules ?? {},
     dayOverrides: ws.dayOverrides ?? {},
   }
 }
@@ -217,7 +232,7 @@ function syncToSupabase(action: Action, activeWorkspace: Workspace, userId: stri
 const EMPTY_WS: Workspace = makeWorkspace(
   { accounts: [], transactions: [], categories: [], budgets: [], goals: [], netWorthHistory: [], subscriptions: [],
     settings: { currency: 'USD', currencySymbol: '$', theme: 'dark', name: '', dashboardWidgets: [] },
-    merchantRules: {}, dayOverrides: {} },
+    merchantRules: {}, reimbursementRules: {}, dayOverrides: {} },
   'personal', 'Personal Budget', 'personal',
 )
 

@@ -34,9 +34,11 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
     notes: initial?.notes || '',
     isRecurring: initial?.isRecurring || false,
     recurringFrequency: initial?.recurringFrequency || 'monthly' as 'weekly'|'biweekly'|'monthly'|'yearly',
+    isReimbursement: initial?.isReimbursement || false,
   })
   const [err, setErr] = useState('')
   const [retroPrompt, setRetroPrompt] = useState<{ merchant: string; txIds: string[]; categoryId: string } | null>(null)
+  const [reimbursePrompt, setReimbursePrompt] = useState<{ merchant: string; key: string; txIds: string[] } | null>(null)
 
   const filteredCats = state.categories.filter(c => c.type === form.type)
 
@@ -58,6 +60,7 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
       notes: form.notes,
       isRecurring: form.isRecurring,
       recurringFrequency: form.isRecurring ? form.recurringFrequency : undefined,
+      isReimbursement: form.isReimbursement,
     }
     dispatch({ type: initial ? 'UPDATE_TRANSACTION' : 'ADD_TRANSACTION', payload: tx })
 
@@ -66,7 +69,6 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
       const key = merchantKey(tx.description)
       dispatch({ type: 'SAVE_MERCHANT_RULE', payload: { key, categoryId: form.categoryId } })
 
-      // Find other transactions from the same merchant that still have the old category
       const merchant = extractMerchant(tx.description)
       const others = state.transactions.filter(t =>
         t.id !== tx.id &&
@@ -75,9 +77,25 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
       )
       if (others.length > 0) {
         setRetroPrompt({ merchant, txIds: others.map(t => t.id), categoryId: form.categoryId })
-        return // keep modal open to show the retroactive prompt
+        return
       }
     }
+
+    // When reimbursement flag toggled on, check if we should save a rule
+    if (form.isReimbursement && !initial?.isReimbursement) {
+      const key = merchantKey(tx.description)
+      const merchant = extractMerchant(tx.description)
+      const others = state.transactions.filter(t =>
+        t.id !== tx.id &&
+        merchantKey(t.description) === key &&
+        !t.isReimbursement
+      )
+      if (others.length >= 1 && !state.reimbursementRules?.[key]) {
+        setReimbursePrompt({ merchant, key, txIds: others.map(t => t.id) })
+        return
+      }
+    }
+
     onClose()
   }
 
@@ -88,6 +106,17 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
       if (t) dispatch({ type: 'UPDATE_TRANSACTION', payload: { ...t, categoryId: retroPrompt.categoryId } })
     }
     setRetroPrompt(null)
+    onClose()
+  }
+
+  function applyReimburseRetroactively() {
+    if (!reimbursePrompt) return
+    dispatch({ type: 'SAVE_REIMBURSEMENT_RULE', payload: reimbursePrompt.key })
+    for (const id of reimbursePrompt.txIds) {
+      const t = state.transactions.find(x => x.id === id)
+      if (t) dispatch({ type: 'UPDATE_TRANSACTION', payload: { ...t, isReimbursement: true } })
+    }
+    setReimbursePrompt(null)
     onClose()
   }
 
@@ -132,7 +161,13 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <input type="checkbox" id="recurring" checked={form.isRecurring} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked }))}
             style={{ width: 16, height: 16, accentColor: GREEN, cursor: 'pointer' }} />
-          <label htmlFor="recurring" style={{ fontSize: 13, color: '#374151', cursor: 'pointer' }}>Recurring transaction</label>
+          <label htmlFor="recurring" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Recurring transaction</label>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input type="checkbox" id="reimbursement" checked={form.isReimbursement} onChange={e => setForm(f => ({ ...f, isReimbursement: e.target.checked }))}
+            style={{ width: 16, height: 16, accentColor: '#f59e0b', cursor: 'pointer' }} />
+          <label htmlFor="reimbursement" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>Reimbursement</label>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(excluded from income &amp; spending totals)</span>
         </div>
         {form.isRecurring && (
           <Field label="Frequency">
@@ -156,7 +191,21 @@ export function TransactionModal({ open, onClose, initial }: TransactionModalPro
             </div>
           </div>
         )}
-        {!retroPrompt && (
+        {reimbursePrompt && (
+          <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
+              Always flag "{reimbursePrompt.merchant}" as reimbursement?
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {reimbursePrompt.txIds.length} other transaction{reimbursePrompt.txIds.length !== 1 ? 's' : ''} from this sender will also be marked as reimbursements and excluded from income.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button size="sm" onClick={applyReimburseRetroactively} style={{ flex: 1 }}>Yes, always flag</Button>
+              <Button size="sm" variant="secondary" onClick={() => { setReimbursePrompt(null); onClose() }} style={{ flex: 1 }}>No, just this one</Button>
+            </div>
+          </div>
+        )}
+        {!retroPrompt && !reimbursePrompt && (
           <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
             <Button onClick={save} style={{ flex: 1 }}>Save Transaction</Button>
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -379,6 +428,9 @@ export function Transactions() {
                 </div>
                 {t.isRecurring && (
                   <span style={{ fontSize: 11, color: GREEN, background: 'rgba(6,198,138,0.1)', padding: '2px 8px', borderRadius: 99 }}>Recurring</span>
+                )}
+                {t.isReimbursement && (
+                  <span style={{ fontSize: 11, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 99 }}>Reimbursement</span>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

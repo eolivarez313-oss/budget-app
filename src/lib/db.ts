@@ -34,7 +34,7 @@ export async function loadState(userId: string): Promise<AppState | null> {
     type: r.type, categoryId: r.category_id, accountId: r.account_id,
     notes: r.notes, isRecurring: r.is_recurring,
     recurringFrequency: r.recurring_frequency, merchantName: r.merchant_name,
-    tags: r.tags,
+    tags: r.tags, isReimbursement: r.is_reimbursement ?? false,
   })
 
   const mapBudget = (r: any): Budget => ({
@@ -87,6 +87,7 @@ export async function loadState(userId: string): Promise<AppState | null> {
     subscriptions: (subscriptions.data || []).map(mapSubscription),
     settings,
     merchantRules: {},
+    reimbursementRules: {},
     dayOverrides: (s?.day_overrides && typeof s.day_overrides === 'object' && !Array.isArray(s.day_overrides))
       ? s.day_overrides as Record<string, number>
       : {},
@@ -114,7 +115,7 @@ export async function upsertTransaction(t: Transaction, userId: string) {
     type: t.type, category_id: t.categoryId, account_id: t.accountId,
     notes: t.notes, is_recurring: t.isRecurring,
     recurring_frequency: t.recurringFrequency, merchant_name: t.merchantName,
-    tags: t.tags, user_id: userId,
+    tags: t.tags, is_reimbursement: t.isReimbursement ?? false, user_id: userId,
   })
 }
 

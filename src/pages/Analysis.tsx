@@ -395,15 +395,15 @@ export function Analysis() {
                   </div>
                   {/* Name + amounts */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>{r.name}</p>
-                    <div style={{ display: 'flex', gap: 20 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 10 }}>{r.name}</p>
+                    <div style={{ display: 'flex', gap: 28 }}>
                       <div>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Budgeted</p>
-                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{formatCurrency(r.budgeted, sym)}{viewMode === 'range' && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> ×{weekCount.toFixed(1)}w</span>}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Budgeted</p>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(r.budgeted, sym)}{viewMode === 'range' && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> ×{weekCount.toFixed(1)}w</span>}</p>
                       </div>
                       <div>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Actual</p>
-                        <p style={{ fontSize: 13, fontWeight: 500, color: r.over ? RED : 'var(--text)' }}>{formatCurrency(r.spent, sym)}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Actual</p>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: r.over ? RED : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(r.spent, sym)}</p>
                       </div>
                     </div>
                   </div>

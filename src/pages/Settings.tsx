@@ -124,6 +124,10 @@ export function Settings() {
   const [preTaxHealthcare, setPreTaxHealthcare] = useState(state.settings.preTaxHealthcareAnnual?.toString() ?? '0')
   const [taxSaved, setTaxSaved] = useState(false)
 
+  // Income verification step
+  const [verifyOverride, setVerifyOverride] = useState(false)
+  const [actualPaycheck, setActualPaycheck] = useState('')
+
   // Live tax preview — recalculates whenever inputs change
   const { hourlyRate, hoursPerDay, workDays } = state.settings
   const grossAnnual = (hourlyRate ?? 0) * (hoursPerDay ?? 8) * ((workDays?.length ?? 5)) * 52
@@ -145,6 +149,10 @@ export function Settings() {
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
+  const PERIODS_PER_MONTH: Record<string, number> = {
+    weekly: 52 / 12, biweekly: 26 / 12, 'semi-monthly': 2, monthly: 1,
+  }
+
   function saveTaxSettings() {
     if (!taxBreakdown) return
     const netMonthly = taxBreakdown.annualNet / 12
@@ -160,9 +168,35 @@ export function Settings() {
         preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
         netMonthlyIncome: netMonthly,
         netHourlyRate: netHourly,
-        monthlyIncome: netMonthly,  // keep monthlyIncome in sync with net
+        monthlyIncome: netMonthly,
       },
     })
+    setVerifyOverride(false)
+    setTaxSaved(true)
+    setTimeout(() => setTaxSaved(false), 2500)
+  }
+
+  function saveVerifiedPaycheck() {
+    const perPeriod = parseFloat(actualPaycheck)
+    if (!perPeriod || perPeriod <= 0) return
+    const monthly = perPeriod * (PERIODS_PER_MONTH[payFrequency] ?? 1)
+    const netHourly = grossAnnual > 0 && (hourlyRate ?? 0) > 0
+      ? (monthly * 12) / (grossAnnual / (hourlyRate ?? 1))
+      : undefined
+    dispatch({
+      type: 'UPDATE_SETTINGS',
+      payload: {
+        filingStatus,
+        stateCode,
+        preTax401kPct: parseFloat(preTax401kPct) || 0,
+        preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
+        netMonthlyIncome: monthly,
+        netHourlyRate: netHourly,
+        monthlyIncome: monthly,
+      },
+    })
+    setVerifyOverride(false)
+    setActualPaycheck('')
     setTaxSaved(true)
     setTimeout(() => setTaxSaved(false), 2500)
   }
@@ -342,9 +376,87 @@ export function Settings() {
               </div>
             )}
 
-            <Button onClick={saveTaxSettings} disabled={!taxBreakdown} style={{ minWidth: 160 }}>
-              {taxSaved ? <><Check size={14} /> Saved!</> : 'Save & apply take-home pay'}
-            </Button>
+            {/* Income verification step */}
+            {taxBreakdown && !verifyOverride && (
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 12, padding: '16px 18px', marginBottom: 14,
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                  Does this match your actual paycheck?
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Estimated take-home: <strong style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                    ${taxBreakdown.netPay.toFixed(2)}
+                  </strong> per {({ weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month' })[payFrequency] ?? 'period'}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button onClick={saveTaxSettings} style={{ minWidth: 160 }}>
+                    {taxSaved ? <><Check size={14} /> Saved!</> : 'Yes, use this amount'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => { setVerifyOverride(true); setActualPaycheck(taxBreakdown.netPay.toFixed(2)) }}>
+                    No, enter my actual amount
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Override input */}
+            {taxBreakdown && verifyOverride && (
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 12, padding: '16px 18px', marginBottom: 14,
+                display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  Enter your actual take-home pay
+                </p>
+                <Field label={`Actual amount per ${({ weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month' })[payFrequency] ?? 'period'} ($)`}>
+                  <Input
+                    type="number" min="0" step="0.01"
+                    value={actualPaycheck}
+                    onChange={e => setActualPaycheck(e.target.value)}
+                    placeholder={taxBreakdown.netPay.toFixed(2)}
+                    autoFocus
+                  />
+                </Field>
+                {actualPaycheck && Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay) > 5 && (
+                  <p style={{
+                    fontSize: 12, color: 'var(--text-muted)',
+                    background: 'oklch(0.20 0.04 60 / 0.5)', border: '1px solid oklch(0.35 0.08 60 / 0.4)',
+                    borderRadius: 8, padding: '8px 12px',
+                  }}>
+                    Your actual take-home is ${Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay).toFixed(0)} {parseFloat(actualPaycheck) < taxBreakdown.netPay ? 'lower' : 'higher'} than estimated — may be due to additional withholdings not captured here (local taxes, garnishments, extra W-4 elections).
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button onClick={saveVerifiedPaycheck} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
+                    {taxSaved ? <><Check size={14} /> Saved!</> : 'Save my actual paycheck'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setVerifyOverride(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Persistent gap note when a corrected value is active */}
+            {state.settings.netMonthlyIncome && taxBreakdown &&
+              Math.abs(state.settings.netMonthlyIncome - taxBreakdown.annualNet / 12) > 5 && (
+              <div style={{
+                fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'flex-start', gap: 6,
+                marginBottom: 14, padding: '8px 12px',
+                background: 'oklch(0.20 0.04 60 / 0.4)', border: '1px solid oklch(0.35 0.08 60 / 0.35)',
+                borderRadius: 8,
+              }}>
+                <span>
+                  Using your corrected paycheck amount (${state.settings.netMonthlyIncome.toFixed(0)}/mo), which differs from the estimate by ${Math.abs(state.settings.netMonthlyIncome - taxBreakdown.annualNet / 12).toFixed(0)}/mo.{' '}
+                  <button
+                    onClick={() => { setVerifyOverride(true); setActualPaycheck((state.settings.netMonthlyIncome! / (PERIODS_PER_MONTH[payFrequency] ?? 1)).toFixed(2)) }}
+                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                    Re-verify
+                  </button>
+                </span>
+              </div>
+            )}
           </>
         )}
       </Card>

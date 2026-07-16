@@ -138,12 +138,13 @@ body {
 /* ── Type scale utilities ─────────────────────────────────────────────────── */
 .font-display {
   font-family: "Fraunces", ui-serif, Georgia, serif;
-  font-feature-settings: "ss01";
+  font-feature-settings: "ss01", "tnum";
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--tracking-display);
 }
 /* Scale levels — map any element to one of these */
-.t-hero    { font-size: var(--text-hero);    font-family: "Fraunces", ui-serif, Georgia, serif; font-feature-settings: "ss01"; letter-spacing: var(--tracking-display); line-height: 1.02; }
-.t-display { font-size: var(--text-display); font-family: "Fraunces", ui-serif, Georgia, serif; font-feature-settings: "ss01"; letter-spacing: var(--tracking-display); line-height: 1.1; }
+.t-hero    { font-size: var(--text-hero);    font-family: "Fraunces", ui-serif, Georgia, serif; font-feature-settings: "ss01", "tnum"; font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-display); line-height: 1.02; }
+.t-display { font-size: var(--text-display); font-family: "Fraunces", ui-serif, Georgia, serif; font-feature-settings: "ss01", "tnum"; font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-display); line-height: 1.1; }
 .t-title   { font-size: var(--text-title);   font-family: "Fraunces", ui-serif, Georgia, serif; font-feature-settings: "ss01"; letter-spacing: var(--tracking-title);   line-height: 1.2; }
 .t-body    { font-size: var(--text-body);    line-height: 1.6; }
 .t-label   { font-size: var(--text-label);   font-weight: 500; line-height: 1.4; }

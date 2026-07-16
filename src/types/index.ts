@@ -26,6 +26,7 @@ export interface Transaction {
   recurringFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'yearly'
   merchantName?: string
   tags?: string[]
+  isReimbursement?: boolean
 }
 
 export interface Category {
@@ -119,6 +120,7 @@ export interface AppState {
   subscriptions: Subscription[]
   settings: AppSettings
   merchantRules: Record<string, string>
+  reimbursementRules: Record<string, boolean>  // merchantKey → always flag as reimbursement
   dayOverrides: Record<string, number>   // 'YYYY-MM-DD' → hours worked that day
 }
 
