@@ -380,7 +380,18 @@ export function Settings() {
 
             {taxBreakdown && (
               <div style={{ marginBottom: 16 }}>
-                <TaxBreakdown breakdown={taxBreakdown} payFrequency={payFrequency} />
+                <TaxBreakdown
+                  breakdown={taxBreakdown}
+                  payFrequency={payFrequency}
+                  confirmedNetPay={
+                    verifyPhase === 'confirmed' && state.settings.netMonthlyIncome
+                      ? {
+                          perPeriod: state.settings.netMonthlyIncome / (PERIODS_PER_MONTH[payFrequency] ?? 1),
+                          annual: state.settings.netMonthlyIncome * 12,
+                        }
+                      : undefined
+                  }
+                />
               </div>
             )}
 

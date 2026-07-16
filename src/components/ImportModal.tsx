@@ -346,6 +346,7 @@ export function ImportModal({ open, onClose }: ImportModalProps) {
 
   function handleFile(file: File) {
     if (!file.type.startsWith('image/')) return setExtractErr('Please upload an image file.')
+    if (file.size > 10 * 1024 * 1024) return setExtractErr('Image must be under 10 MB.')
     setImageFile(file)
     setExtractErr('')
     setImagePreview(URL.createObjectURL(file))

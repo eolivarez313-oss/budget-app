@@ -5,6 +5,8 @@ interface Props {
   breakdown: TaxBreakdownData
   payFrequency: string
   compact?: boolean
+  /** When provided, overrides the displayed net/take-home figures with a user-confirmed actual value */
+  confirmedNetPay?: { perPeriod: number; annual: number }
 }
 
 const FREQ_LABEL: Record<string, string> = {
@@ -14,7 +16,7 @@ const FREQ_LABEL: Record<string, string> = {
   monthly: 'month',
 }
 
-export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
+export function TaxBreakdown({ breakdown, payFrequency, compact, confirmedNetPay }: Props) {
   const fmt = (n: number) => new Intl.NumberFormat('en-US', {
     style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0,
   }).format(n)
@@ -25,7 +27,11 @@ export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
 
   const per = FREQ_LABEL[payFrequency] ?? 'period'
 
-  const rows: { label: string; value: number; annual: number; color?: string; bold?: boolean; indent?: boolean }[] = [
+  const displayNetPay = confirmedNetPay?.perPeriod ?? breakdown.netPay
+  const displayAnnualNet = confirmedNetPay?.annual ?? breakdown.annualNet
+  const isCorrected = !!confirmedNetPay
+
+  const rows: { label: string; value: number; annual: number; color?: string; bold?: boolean; indent?: boolean; tag?: string }[] = [
     { label: `Gross pay / ${per}`, value: breakdown.grossPay, annual: breakdown.annualGross, bold: true },
     ...(breakdown.preTaxDeductions > 0 ? [
       { label: 'Pre-tax deductions', value: -breakdown.preTaxDeductions, annual: -breakdown.annualPreTax, indent: true, color: 'var(--text-muted)' },
@@ -36,7 +42,7 @@ export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
     ...(breakdown.stateTax > 0 ? [
       { label: 'State income tax', value: -breakdown.stateTax, annual: -breakdown.annualStateTax, indent: true, color: 'oklch(0.72 0.18 25)' },
     ] : []),
-    { label: `Take-home / ${per}`, value: breakdown.netPay, annual: breakdown.annualNet, bold: true, color: 'oklch(0.72 0.18 145)' },
+    { label: `Take-home / ${per}`, value: displayNetPay, annual: displayAnnualNet, bold: true, color: 'oklch(0.72 0.18 145)', tag: isCorrected ? 'corrected' : undefined },
   ]
 
   if (compact) {
@@ -78,7 +84,7 @@ export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
       {/* Header stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <StatCard label={`Gross / ${per}`} value={fmtDec(breakdown.grossPay)} />
-        <StatCard label={`Net / ${per}`} value={fmtDec(breakdown.netPay)} highlight />
+        <StatCard label={`Net / ${per}`} value={fmtDec(displayNetPay)} highlight tag={isCorrected ? 'corrected' : undefined} />
         <StatCard label="Effective rate" value={`${breakdown.effectiveRate.toFixed(1)}%`} />
       </div>
 
@@ -113,6 +119,11 @@ export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
             }}>
               {r.indent && <span style={{ color: 'var(--border)' }}>−</span>}
               {r.label}
+              {r.tag === 'corrected' && (
+                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                  background: 'oklch(0.35 0.08 60 / 0.3)', color: 'oklch(0.72 0.14 60)',
+                  padding: '1px 5px', borderRadius: 4 }}>corrected</span>
+              )}
             </span>
             <span style={{
               fontSize: 13, fontWeight: r.bold ? 700 : 500,
@@ -148,14 +159,21 @@ export function TaxBreakdown({ breakdown, payFrequency, compact }: Props) {
   )
 }
 
-function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function StatCard({ label, value, highlight, tag }: { label: string; value: string; highlight?: boolean; tag?: string }) {
   return (
     <div style={{
       background: highlight ? 'oklch(0.20 0.05 145)' : 'var(--background)',
       border: `1px solid ${highlight ? 'oklch(0.35 0.08 145)' : 'var(--border)'}`,
       borderRadius: 10, padding: '10px 12px',
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{label}</div>
+        {tag === 'corrected' && (
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+            background: 'oklch(0.35 0.08 60 / 0.3)', color: 'oklch(0.72 0.14 60)',
+            padding: '1px 5px', borderRadius: 4 }}>corrected</span>
+        )}
+      </div>
       <div style={{
         fontSize: 16, fontWeight: 700, fontFamily: '"Fraunces", serif',
         color: highlight ? 'oklch(0.72 0.18 145)' : 'var(--text)',
