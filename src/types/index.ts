@@ -82,6 +82,8 @@ export interface Subscription {
 
 export type WorkDay = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat'
 
+export type FilingStatus = 'single' | 'married' | 'hoh'
+
 export interface AppSettings {
   currency: string
   currencySymbol: string
@@ -96,6 +98,14 @@ export interface AppSettings {
   hourlyRate?: number
   workDays?: WorkDay[]       // e.g. ['Mon','Tue','Wed','Thu','Fri']
   hoursPerDay?: number
+  // Tax withholding inputs
+  filingStatus?: FilingStatus
+  stateCode?: string         // 2-letter US state code e.g. 'TX'
+  preTax401kPct?: number     // 401k contribution as a % of gross, e.g. 6
+  preTaxHealthcareAnnual?: number  // annual pre-tax health/dental/vision premium
+  // Computed net figures (cached from last tax calculation)
+  netMonthlyIncome?: number
+  netHourlyRate?: number
 }
 
 // Legacy single-workspace state

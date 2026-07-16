@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Trash2, Edit2, Download, Check } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
@@ -7,6 +7,8 @@ import { Button } from '../components/ui/Button'
 import { IconButton } from '../components/ui/IconButton'
 import { Input, Select, Field } from '../components/ui/Input'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { TaxBreakdown } from '../components/TaxBreakdown'
+import { calculateTaxes, US_STATES, FilingStatus } from '../lib/taxes'
 import { Category } from '../types'
 import { uuid } from '../utils/uuid'
 
@@ -114,11 +116,56 @@ export function Settings() {
   const [monthlySavings, setMonthlySavings] = useState(state.settings.monthlySavings?.toString() || '')
   const [payFrequency, setPayFrequency] = useState<'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'>(state.settings.payFrequency || 'biweekly')
   const [saved, setSaved] = useState(false)
+
+  // Tax inputs
+  const [filingStatus, setFilingStatus] = useState<FilingStatus>(state.settings.filingStatus ?? 'single')
+  const [stateCode, setStateCode] = useState(state.settings.stateCode ?? 'TX')
+  const [preTax401kPct, setPreTax401kPct] = useState(state.settings.preTax401kPct?.toString() ?? '0')
+  const [preTaxHealthcare, setPreTaxHealthcare] = useState(state.settings.preTaxHealthcareAnnual?.toString() ?? '0')
+  const [taxSaved, setTaxSaved] = useState(false)
+
+  // Live tax preview — recalculates whenever inputs change
+  const { hourlyRate, hoursPerDay, workDays } = state.settings
+  const grossAnnual = (hourlyRate ?? 0) * (hoursPerDay ?? 8) * ((workDays?.length ?? 5)) * 52
+
+  const taxBreakdown = useMemo(() => {
+    if (!grossAnnual) return null
+    return calculateTaxes({
+      grossAnnual,
+      filingStatus,
+      stateCode,
+      payFrequency: payFrequency as any,
+      preTax401kPct: parseFloat(preTax401kPct) || 0,
+      preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
+    })
+  }, [grossAnnual, filingStatus, stateCode, payFrequency, preTax401kPct, preTaxHealthcare])
   const [showCatModal, setShowCatModal] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [deletingCat, setDeletingCat] = useState<Category | null>(null)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+
+  function saveTaxSettings() {
+    if (!taxBreakdown) return
+    const netMonthly = taxBreakdown.annualNet / 12
+    const netHourly = grossAnnual > 0 && (hourlyRate ?? 0) > 0
+      ? taxBreakdown.annualNet / (grossAnnual / (hourlyRate ?? 1))
+      : undefined
+    dispatch({
+      type: 'UPDATE_SETTINGS',
+      payload: {
+        filingStatus,
+        stateCode,
+        preTax401kPct: parseFloat(preTax401kPct) || 0,
+        preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
+        netMonthlyIncome: netMonthly,
+        netHourlyRate: netHourly,
+        monthlyIncome: netMonthly,  // keep monthlyIncome in sync with net
+      },
+    })
+    setTaxSaved(true)
+    setTimeout(() => setTaxSaved(false), 2500)
+  }
 
   function saveSettings() {
     const income = parseFloat(monthlyIncome)
@@ -131,12 +178,6 @@ export function Settings() {
       payFrequency: payFrequency as any,
     }
     dispatch({ type: 'UPDATE_SETTINGS', payload: updated })
-    // Also write directly to localStorage so it persists immediately
-    try {
-      const current = JSON.parse(localStorage.getItem('budget_app_v1') || '{}')
-      current.settings = { ...current.settings, ...updated }
-      localStorage.setItem('budget_app_v1', JSON.stringify(current))
-    } catch {}
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -249,6 +290,63 @@ export function Settings() {
             <Button type="button" variant="danger" onClick={() => setConfirmReset(true)}>Reset to Demo</Button>
           </div>
         </form>
+      </Card>
+
+      {/* Income & Taxes */}
+      <Card style={{ padding: '20px 24px' }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Income & Taxes</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+          {grossAnnual > 0
+            ? `Based on $${(state.settings.hourlyRate ?? 0).toFixed(2)}/hr × ${state.settings.hoursPerDay ?? 8}h × ${state.settings.workDays?.length ?? 5} days/wk`
+            : 'Complete the income step in onboarding first to unlock take-home pay calculation.'}
+        </p>
+
+        {grossAnnual > 0 && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+              <Field label="Filing status">
+                <Select value={filingStatus} onChange={e => setFilingStatus(e.target.value as FilingStatus)}>
+                  <option value="single">Single</option>
+                  <option value="married">Married filing jointly</option>
+                  <option value="hoh">Head of household</option>
+                </Select>
+              </Field>
+              <Field label="State of residence">
+                <Select value={stateCode} onChange={e => setStateCode(e.target.value)}>
+                  {US_STATES.map(s => (
+                    <option key={s.code} value={s.code}>{s.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="401k contribution (% of gross)">
+                <Input
+                  type="number" min="0" max="100" step="0.5"
+                  value={preTax401kPct}
+                  onChange={e => setPreTax401kPct(e.target.value)}
+                  placeholder="0"
+                />
+              </Field>
+              <Field label="Health/dental premium (annual $)">
+                <Input
+                  type="number" min="0" step="1"
+                  value={preTaxHealthcare}
+                  onChange={e => setPreTaxHealthcare(e.target.value)}
+                  placeholder="0"
+                />
+              </Field>
+            </div>
+
+            {taxBreakdown && (
+              <div style={{ marginBottom: 16 }}>
+                <TaxBreakdown breakdown={taxBreakdown} payFrequency={payFrequency} />
+              </div>
+            )}
+
+            <Button onClick={saveTaxSettings} disabled={!taxBreakdown} style={{ minWidth: 160 }}>
+              {taxSaved ? <><Check size={14} /> Saved!</> : 'Save & apply take-home pay'}
+            </Button>
+          </>
+        )}
       </Card>
 
       {/* Categories */}

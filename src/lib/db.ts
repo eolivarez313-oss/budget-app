@@ -69,6 +69,12 @@ export async function loadState(userId: string): Promise<AppState | null> {
     hourlyRate: s.hourly_rate ? Number(s.hourly_rate) : undefined,
     workDays: s.work_days ?? undefined,
     hoursPerDay: s.hours_per_day ? Number(s.hours_per_day) : undefined,
+    filingStatus: (s.filing_status as any) ?? 'single',
+    stateCode: s.state_code ?? 'TX',
+    preTax401kPct: s.pre_tax_401k_pct ? Number(s.pre_tax_401k_pct) : 0,
+    preTaxHealthcareAnnual: s.pre_tax_healthcare_annual ? Number(s.pre_tax_healthcare_annual) : 0,
+    netMonthlyIncome: s.net_monthly_income ? Number(s.net_monthly_income) : undefined,
+    netHourlyRate: s.net_hourly_rate ? Number(s.net_hourly_rate) : undefined,
   } : { currency: 'USD', currencySymbol: '$', theme: 'dark', name: 'My Budget', dashboardWidgets: [] }
 
   return {
@@ -183,6 +189,12 @@ export async function saveSettings(s: AppSettings, userId: string, dayOverrides?
     work_days: s.workDays ?? null,
     hours_per_day: s.hoursPerDay ?? null,
     day_overrides: dayOverrides ?? {},
+    filing_status: s.filingStatus ?? 'single',
+    state_code: s.stateCode ?? 'TX',
+    pre_tax_401k_pct: s.preTax401kPct ?? 0,
+    pre_tax_healthcare_annual: s.preTaxHealthcareAnnual ?? 0,
+    net_monthly_income: s.netMonthlyIncome ?? null,
+    net_hourly_rate: s.netHourlyRate ?? null,
   }, { onConflict: 'user_id' })
 }
 

@@ -28,7 +28,9 @@ export function Calendar() {
   const [draftHours, setDraftHours] = useState('')
 
   const { settings, transactions, dayOverrides } = state
-  const hourlyRate = settings.hourlyRate ?? 0
+  // Use net hourly rate (after taxes) if tax calculation has been run; fall back to gross
+  const hourlyRate = settings.netHourlyRate ?? settings.hourlyRate ?? 0
+  const isNetRate = !!settings.netHourlyRate
   const hoursPerDay = settings.hoursPerDay ?? 8
   const workDays: WorkDay[] = settings.workDays ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
@@ -146,7 +148,17 @@ export function Calendar() {
           <h1 style={{ fontFamily: '"Fraunces", serif', fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
             Calendar
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Daily earnings & spending</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+            Daily earnings & spending
+            {hourlyRate > 0 && (
+              <span style={{ marginLeft: 8, fontSize: 11, color: isNetRate ? 'oklch(0.72 0.18 145)' : 'var(--text-dim)',
+                background: isNetRate ? 'oklch(0.20 0.05 145)' : 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px',
+              }}>
+                {isNetRate ? 'net (after tax)' : 'gross (pre-tax)'}
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -352,7 +364,7 @@ export function Calendar() {
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Clock size={11} />
                       {selectedHours !== null
-                        ? `${selectedHours}h × $${hourlyRate}/hr`
+                        ? `${selectedHours}h × $${hourlyRate.toFixed(2)}/hr${isNetRate ? ' net' : ' gross'}`
                         : 'No scheduled hours'}
                       {hasOverride && <span style={{ color: 'var(--primary)', fontSize: 10, fontWeight: 600 }}>(custom)</span>}
                     </div>
