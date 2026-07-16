@@ -27,6 +27,8 @@ export interface Transaction {
   merchantName?: string
   tags?: string[]
   isReimbursement?: boolean
+  source?: 'manual' | 'plaid' | 'import'
+  plaidTransactionId?: string
 }
 
 export interface Category {

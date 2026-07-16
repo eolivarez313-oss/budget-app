@@ -35,6 +35,8 @@ export async function loadState(userId: string): Promise<AppState | null> {
     notes: r.notes, isRecurring: r.is_recurring,
     recurringFrequency: r.recurring_frequency, merchantName: r.merchant_name,
     tags: r.tags, isReimbursement: r.is_reimbursement ?? false,
+    source: r.source ?? 'manual',
+    plaidTransactionId: r.plaid_transaction_id ?? undefined,
   })
 
   const mapBudget = (r: any): Budget => ({
