@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Edit2, Download, Check } from 'lucide-react'
+import { Plus, Trash2, Edit2, Download, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -16,6 +16,14 @@ const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
 
 const ICONS = ['🛒','🍽️','🚗','🎬','🛍️','⚡','💪','🏠','💰','💻','📈','✈️','🏥','📚','🎮','☕','🐕','👶','🎁','🔧','📱','🏋️','🎵','🍺']
+
+const PERIODS_PER_MONTH: Record<string, number> = {
+  weekly: 52 / 12, biweekly: 26 / 12, 'semi-monthly': 2, monthly: 1,
+}
+
+const FREQ_LABEL: Record<string, string> = {
+  weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month',
+}
 
 function CategoryModal({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: Category }) {
   const { dispatch } = useStore()
@@ -110,33 +118,38 @@ function CategoryModal({ open, onClose, initial }: { open: boolean; onClose: () 
 
 export function Settings() {
   const { state, dispatch } = useStore()
-  const [name, setName] = useState(state.settings.name)
-  const [currencySymbol, setCurrencySymbol] = useState(state.settings.currencySymbol)
-  const [monthlyIncome, setMonthlyIncome] = useState(state.settings.monthlyIncome?.toString() || '')
-  const [monthlySavings, setMonthlySavings] = useState(state.settings.monthlySavings?.toString() || '')
-  const [payFrequency, setPayFrequency] = useState<'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'>(state.settings.payFrequency || 'biweekly')
+  const s = state.settings
+
+  // ── General ──────────────────────────────────────────────────────────────────
+  const [budgetName, setBudgetName] = useState(s.name)
+  const [currencySymbol, setCurrencySymbol] = useState(s.currencySymbol)
+  const [monthlySavings, setMonthlySavings] = useState(s.monthlySavings?.toString() || '')
+  const [payFrequency, setPayFrequency] = useState<'weekly' | 'biweekly' | 'semi-monthly' | 'monthly'>(s.payFrequency || 'biweekly')
   const [saved, setSaved] = useState(false)
 
-  // Tax inputs
-  const [filingStatus, setFilingStatus] = useState<FilingStatus>(state.settings.filingStatus ?? 'single')
-  const [stateCode, setStateCode] = useState(state.settings.stateCode ?? 'TX')
-  const [preTax401kPct, setPreTax401kPct] = useState(state.settings.preTax401kPct?.toString() ?? '0')
-  const [preTaxHealthcare, setPreTaxHealthcare] = useState(state.settings.preTaxHealthcareAnnual?.toString() ?? '0')
-  const [taxSaved, setTaxSaved] = useState(false)
+  // ── Income — single always-editable field ────────────────────────────────────
+  // Canonical: paycheckAmount (per-period). Derive monthly for display.
+  const ppm = PERIODS_PER_MONTH[payFrequency] ?? 1
+  const perLabel = FREQ_LABEL[payFrequency] ?? 'period'
 
-  // Income verification step
-  // 'unconfirmed' = show "does this match?", 'confirmed' = show saved value, 'input' = correction input open
-  const [verifyPhase, setVerifyPhase] = useState<'unconfirmed' | 'confirmed' | 'input'>(
-    state.settings.netMonthlyIncome ? 'confirmed' : 'unconfirmed'
-  )
-  const [actualPaycheck, setActualPaycheck] = useState('')
+  const initPaycheck = (): string => {
+    if (s.paycheckAmount && s.paycheckAmount > 0) return s.paycheckAmount.toFixed(2)
+    const mi = s.netMonthlyIncome ?? s.monthlyIncome
+    if (mi && mi > 0) return (mi / ppm).toFixed(2)
+    return ''
+  }
+  const [actualPaycheck, setActualPaycheck] = useState(initPaycheck)
+  const [incomeSaved, setIncomeSaved] = useState(false)
 
-  // Alias kept for the override-input path
-  const verifyOverride = verifyPhase === 'input'
+  // ── Tax calculator inputs ─────────────────────────────────────────────────────
+  const [filingStatus, setFilingStatus] = useState<FilingStatus>(s.filingStatus ?? 'single')
+  const [stateCode, setStateCode] = useState(s.stateCode ?? 'TX')
+  const [preTax401kPct, setPreTax401kPct] = useState(s.preTax401kPct?.toString() ?? '0')
+  const [preTaxHealthcare, setPreTaxHealthcare] = useState(s.preTaxHealthcareAnnual?.toString() ?? '0')
+  const [showBreakdown, setShowBreakdown] = useState(false)
 
-  // Live tax preview — recalculates whenever inputs change
-  const { hourlyRate, hoursPerDay, workDays } = state.settings
-  const grossAnnual = (hourlyRate ?? 0) * (hoursPerDay ?? 8) * ((workDays?.length ?? 5)) * 52
+  const { hourlyRate, hoursPerDay, workDays } = s
+  const grossAnnual = (hourlyRate ?? 0) * (hoursPerDay ?? 8) * (workDays?.length ?? 5) * 52
 
   const taxBreakdown = useMemo(() => {
     if (!grossAnnual) return null
@@ -149,79 +162,64 @@ export function Settings() {
       preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
     })
   }, [grossAnnual, filingStatus, stateCode, payFrequency, preTax401kPct, preTaxHealthcare])
+
+  // ── Category modals ───────────────────────────────────────────────────────────
   const [showCatModal, setShowCatModal] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [deletingCat, setDeletingCat] = useState<Category | null>(null)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
-  const PERIODS_PER_MONTH: Record<string, number> = {
-    weekly: 52 / 12, biweekly: 26 / 12, 'semi-monthly': 2, monthly: 1,
-  }
+  // ── Save functions ────────────────────────────────────────────────────────────
 
-  function saveTaxSettings() {
-    if (!taxBreakdown) return
-    const netMonthly = taxBreakdown.annualNet / 12
-    const netHourly = grossAnnual > 0 && (hourlyRate ?? 0) > 0
-      ? taxBreakdown.annualNet / (grossAnnual / (hourlyRate ?? 1))
-      : undefined
+  /** Saves General settings — name, currency, savings goal, pay frequency.
+   *  Does NOT touch income (that's Income & Pay's responsibility). */
+  function saveSettings() {
+    const savings = parseFloat(monthlySavings)
+    // When payFrequency changes, keep monthly income stable and re-derive paycheckAmount
+    const currentMonthly = s.netMonthlyIncome ?? s.monthlyIncome
+    const newPaycheckAmount = currentMonthly ? currentMonthly / (PERIODS_PER_MONTH[payFrequency] ?? 1) : s.paycheckAmount
     dispatch({
       type: 'UPDATE_SETTINGS',
       payload: {
-        filingStatus,
-        stateCode,
-        preTax401kPct: parseFloat(preTax401kPct) || 0,
-        preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
-        netMonthlyIncome: netMonthly,
-        netHourlyRate: netHourly,
-        monthlyIncome: netMonthly,
+        name: budgetName.trim() || 'My Budget',
+        currencySymbol: currencySymbol.trim() || '$',
+        monthlySavings: isNaN(savings) || savings <= 0 ? undefined : savings,
+        payFrequency: payFrequency as any,
+        ...(newPaycheckAmount ? { paycheckAmount: newPaycheckAmount } : {}),
       },
     })
-    setMonthlyIncome(netMonthly.toFixed(2))
-    setVerifyPhase('confirmed')
-    setTaxSaved(true)
-    setTimeout(() => setTaxSaved(false), 2500)
+    // Sync local actualPaycheck input to reflect new frequency
+    if (currentMonthly) setActualPaycheck((currentMonthly / (PERIODS_PER_MONTH[payFrequency] ?? 1)).toFixed(2))
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
   }
 
-  function saveVerifiedPaycheck() {
+  /** Saves the user's actual take-home pay.
+   *  Writes paycheckAmount, monthlyIncome, netMonthlyIncome, and netHourlyRate
+   *  so every part of the app (Dashboard, Home, Analysis, Calendar, etc.) updates immediately. */
+  function saveIncome() {
     const perPeriod = parseFloat(actualPaycheck)
     if (!perPeriod || perPeriod <= 0) return
-    const monthly = perPeriod * (PERIODS_PER_MONTH[payFrequency] ?? 1)
+    const monthly = perPeriod * ppm
     const netHourly = grossAnnual > 0 && (hourlyRate ?? 0) > 0
       ? (monthly * 12) / (grossAnnual / (hourlyRate ?? 1))
       : undefined
     dispatch({
       type: 'UPDATE_SETTINGS',
       payload: {
+        paycheckAmount: perPeriod,
+        monthlyIncome: monthly,
+        netMonthlyIncome: monthly,
+        ...(netHourly !== undefined ? { netHourlyRate: netHourly } : {}),
         filingStatus,
         stateCode,
         preTax401kPct: parseFloat(preTax401kPct) || 0,
         preTaxHealthcareAnnual: parseFloat(preTaxHealthcare) || 0,
-        netMonthlyIncome: monthly,
-        netHourlyRate: netHourly,
-        monthlyIncome: monthly,
       },
     })
-    setMonthlyIncome(monthly.toFixed(2))
-    setActualPaycheck('')
-    setVerifyPhase('confirmed')
-    setTaxSaved(true)
-    setTimeout(() => setTaxSaved(false), 2500)
-  }
-
-  function saveSettings() {
-    const income = parseFloat(monthlyIncome)
-    const savings = parseFloat(monthlySavings)
-    const updated = {
-      name: name.trim() || 'My Budget',
-      currencySymbol: currencySymbol.trim() || '$',
-      monthlyIncome: isNaN(income) || income <= 0 ? undefined : income,
-      monthlySavings: isNaN(savings) || savings <= 0 ? undefined : savings,
-      payFrequency: payFrequency as any,
-    }
-    dispatch({ type: 'UPDATE_SETTINGS', payload: updated })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    setIncomeSaved(true)
+    setTimeout(() => setIncomeSaved(false), 2500)
   }
 
   function deleteCategory(id: string) {
@@ -251,6 +249,25 @@ export function Settings() {
   function executeResetToDemo() {
     dispatch({ type: 'RESET' })
   }
+
+  // ── Derived display values ────────────────────────────────────────────────────
+  const userNetPerPeriod = parseFloat(actualPaycheck) || 0
+  const userNetMonthly = userNetPerPeriod * ppm
+  const grossPerPeriod = taxBreakdown?.grossPay ?? 0
+
+  // Deduction breakdown when both gross and net are known
+  const totalDeductionsPerPeriod = grossPerPeriod > 0 && userNetPerPeriod > 0
+    ? grossPerPeriod - userNetPerPeriod
+    : null
+
+  const taxDeductionsPerPeriod = taxBreakdown
+    ? taxBreakdown.federalTax + taxBreakdown.socialSecurity + taxBreakdown.medicare + taxBreakdown.stateTax
+    : 0
+  const preTaxDeductionsPerPeriod = taxBreakdown?.preTaxDeductions ?? 0
+  const estimatedTotalDeductions = taxDeductionsPerPeriod + preTaxDeductionsPerPeriod
+  const otherDeductionsPerPeriod = totalDeductionsPerPeriod !== null
+    ? Math.max(0, totalDeductionsPerPeriod - estimatedTotalDeductions)
+    : 0
 
   const expCats = state.categories.filter(c => c.type === 'expense')
   const incCats = state.categories.filter(c => c.type === 'income')
@@ -282,28 +299,18 @@ export function Settings() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Manage your preferences and categories</p>
       </div>
 
-      {/* General settings — wrapped in form so Enter key works */}
+      {/* ── General ─────────────────────────────────────────────────────────── */}
       <Card style={{ padding: '20px 24px' }}>
         <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>General</p>
         <form onSubmit={e => { e.preventDefault(); saveSettings() }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr 1fr 160px', gap: 14, marginBottom: 16 }}>
-            <Field label="App Name">
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="My Budget" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr 160px', gap: 14, marginBottom: 16 }}>
+            <Field label="Budget name">
+              <Input value={budgetName} onChange={e => setBudgetName(e.target.value)} placeholder="My Budget" />
             </Field>
             <Field label="Currency">
               <Input value={currencySymbol} onChange={e => setCurrencySymbol(e.target.value)} placeholder="$" />
             </Field>
-            <Field label={`Monthly Take-Home Pay (${currencySymbol || '$'})`}>
-              <Input
-                type="number"
-                value={monthlyIncome}
-                onChange={e => setMonthlyIncome(e.target.value)}
-                placeholder="e.g. 4500"
-                min="0"
-                step="any"
-              />
-            </Field>
-            <Field label={`Monthly Savings Goal (${currencySymbol || '$'})`}>
+            <Field label={`Monthly savings goal (${currencySymbol || '$'})`}>
               <Input
                 type="number"
                 value={monthlySavings}
@@ -313,7 +320,7 @@ export function Settings() {
                 step="any"
               />
             </Field>
-            <Field label="Pay Frequency">
+            <Field label="Pay frequency">
               <Select value={payFrequency} onChange={e => setPayFrequency(e.target.value as any)}>
                 <option value="weekly">Weekly</option>
                 <option value="biweekly">Biweekly (every 2 wks)</option>
@@ -334,18 +341,164 @@ export function Settings() {
         </form>
       </Card>
 
-      {/* Income & Taxes */}
+      {/* ── Income & Pay ─────────────────────────────────────────────────────── */}
       <Card style={{ padding: '20px 24px' }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Income & Taxes</p>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-          {grossAnnual > 0
-            ? `Based on $${(state.settings.hourlyRate ?? 0).toFixed(2)}/hr × ${state.settings.hoursPerDay ?? 8}h × ${state.settings.workDays?.length ?? 5} days/wk`
-            : 'Complete the income step in onboarding first to unlock take-home pay calculation.'}
+        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Income & Pay</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
+          Your take-home pay is the single figure used for budget allocations, paycheck planner, Calendar earnings, and all spending analyses. Update it anytime your paycheck changes.
         </p>
 
-        {grossAnnual > 0 && (
+        {/* Take-home input — always shown, always editable */}
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, padding: '18px 20px', marginBottom: 20,
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+            Your actual take-home pay
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+            Enter what actually hits your bank account each pay period. This overrides any calculated estimate.
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ position: 'relative', flex: 1, maxWidth: 200 }}>
+              <span style={{
+                position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 14, fontWeight: 600, color: 'var(--text-muted)', pointerEvents: 'none',
+              }}>
+                {currencySymbol || '$'}
+              </span>
+              <Input
+                type="number" min="0" step="0.01"
+                value={actualPaycheck}
+                onChange={e => setActualPaycheck(e.target.value)}
+                placeholder="0.00"
+                style={{ paddingLeft: 24, fontVariantNumeric: 'tabular-nums' }}
+              />
+            </div>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              / {perLabel}
+            </span>
+            {userNetPerPeriod > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                = {currencySymbol || '$'}{userNetMonthly.toFixed(0)}/mo
+              </span>
+            )}
+          </div>
+
+          {/* Gross / Net / Deduction summary — only when we have both */}
+          {grossPerPeriod > 0 && userNetPerPeriod > 0 && (
+            <div style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14,
+            }}>
+              {[
+                { label: `Gross / ${perLabel}`, value: `${currencySymbol || '$'}${grossPerPeriod.toFixed(2)}`, muted: false },
+                { label: `Take-home / ${perLabel}`, value: `${currencySymbol || '$'}${userNetPerPeriod.toFixed(2)}`, muted: false },
+                {
+                  label: 'Total deductions',
+                  value: totalDeductionsPerPeriod !== null && totalDeductionsPerPeriod >= 0
+                    ? `${currencySymbol || '$'}${totalDeductionsPerPeriod.toFixed(2)}`
+                    : '—',
+                  muted: true,
+                },
+              ].map(item => (
+                <div key={item.label} style={{
+                  background: 'var(--background)', border: '1px solid var(--border)',
+                  borderRadius: 8, padding: '8px 12px',
+                }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                    {item.label}
+                  </p>
+                  <p style={{
+                    fontFamily: '"Fraunces", serif', fontSize: 15, fontWeight: 700,
+                    fontVariantNumeric: 'tabular-nums', color: 'var(--text)',
+                  }}>
+                    {item.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Deduction breakdown detail */}
+          {totalDeductionsPerPeriod !== null && totalDeductionsPerPeriod > 0 && taxBreakdown && (
+            <div style={{
+              fontSize: 12, color: 'var(--text-muted)', marginBottom: 14,
+              padding: '10px 12px', background: 'var(--background)', borderRadius: 8,
+              border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Estimated deduction breakdown:</p>
+              {taxBreakdown.federalTax > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Federal income tax</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{taxBreakdown.federalTax.toFixed(2)}</span>
+                </div>
+              )}
+              {taxBreakdown.stateTax > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>State income tax</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{taxBreakdown.stateTax.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Social Security (6.2%)</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{taxBreakdown.socialSecurity.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Medicare (1.45%)</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{taxBreakdown.medicare.toFixed(2)}</span>
+              </div>
+              {taxBreakdown.preTaxDeductions > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Pre-tax deductions (401k, health)</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{taxBreakdown.preTaxDeductions.toFixed(2)}</span>
+                </div>
+              )}
+              {otherDeductionsPerPeriod > 0.5 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text)' }}>
+                  <span>Other / additional withholdings</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>−{currencySymbol || '$'}{otherDeductionsPerPeriod.toFixed(2)}</span>
+                </div>
+              )}
+              {totalDeductionsPerPeriod < estimatedTotalDeductions - 1 && (
+                <p style={{ marginTop: 4, fontSize: 11, color: 'oklch(0.72 0.18 145)' }}>
+                  Your actual take-home is higher than the estimate — your employer may withhold less than the standard calculation.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={saveIncome} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
+              {incomeSaved ? <><Check size={14} /> Saved!</> : 'Save take-home pay'}
+            </Button>
+            {taxBreakdown && (
+              <Button variant="secondary" onClick={() => setActualPaycheck(taxBreakdown.netPay.toFixed(2))}>
+                Use estimate: {currencySymbol || '$'}{taxBreakdown.netPay.toFixed(2)} / {perLabel}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Tax calculator — only when hourly rate is configured */}
+        {grossAnnual > 0 ? (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Tax estimate calculator</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Based on {currencySymbol || '$'}{(hourlyRate ?? 0).toFixed(2)}/hr × {hoursPerDay ?? 8}h × {workDays?.length ?? 5} days/wk
+                  — gross {currencySymbol || '$'}{taxBreakdown ? taxBreakdown.grossPay.toFixed(2) : '—'} / {perLabel}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBreakdown(b => !b)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--primary)', fontSize: 12, fontWeight: 500 }}>
+                {showBreakdown ? <><ChevronUp size={13} /> Hide breakdown</> : <><ChevronDown size={13} /> Show breakdown</>}
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 14, marginBottom: showBreakdown ? 16 : 0 }}>
               <Field label="Filing status">
                 <Select value={filingStatus} onChange={e => setFilingStatus(e.target.value as FilingStatus)}>
                   <option value="single">Single</option>
@@ -378,159 +531,21 @@ export function Settings() {
               </Field>
             </div>
 
-            {taxBreakdown && (
-              <div style={{ marginBottom: 16 }}>
-                <TaxBreakdown
-                  breakdown={taxBreakdown}
-                  payFrequency={payFrequency}
-                  confirmedNetPay={
-                    verifyPhase === 'confirmed' && state.settings.netMonthlyIncome
-                      ? {
-                          perPeriod: state.settings.netMonthlyIncome / (PERIODS_PER_MONTH[payFrequency] ?? 1),
-                          annual: state.settings.netMonthlyIncome * 12,
-                        }
-                      : undefined
-                  }
-                />
-              </div>
+            {showBreakdown && taxBreakdown && (
+              <TaxBreakdown
+                breakdown={taxBreakdown}
+                payFrequency={payFrequency}
+              />
             )}
-
-            {/* ── Verification / confirmation block ── */}
-            {taxBreakdown && (() => {
-              const freqLabel: Record<string, string> = {
-                weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month',
-              }
-              const perLabel = freqLabel[payFrequency] ?? 'period'
-              const confirmedMonthly = state.settings.netMonthlyIncome
-              const estimatedMonthly = taxBreakdown.annualNet / 12
-              const confirmedPerPeriod = confirmedMonthly
-                ? confirmedMonthly / (PERIODS_PER_MONTH[payFrequency] ?? 1)
-                : null
-              const gap = confirmedMonthly ? confirmedMonthly - estimatedMonthly : 0
-              const isCorrected = Math.abs(gap) > 5
-
-              // ── phase: correction input open ──────────────────────────
-              if (verifyPhase === 'input') {
-                return (
-                  <div style={{
-                    background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 12, padding: '16px 18px', marginBottom: 14,
-                    display: 'flex', flexDirection: 'column', gap: 12,
-                  }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                      Enter your actual take-home pay
-                    </p>
-                    <Field label={`Actual amount per ${perLabel} ($)`}>
-                      <Input
-                        type="number" min="0" step="0.01"
-                        value={actualPaycheck}
-                        onChange={e => setActualPaycheck(e.target.value)}
-                        placeholder={taxBreakdown.netPay.toFixed(2)}
-                        autoFocus
-                      />
-                    </Field>
-                    {actualPaycheck && Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay) > 5 && (
-                      <p style={{
-                        fontSize: 12, color: 'var(--text-muted)',
-                        background: 'oklch(0.20 0.04 60 / 0.5)', border: '1px solid oklch(0.35 0.08 60 / 0.4)',
-                        borderRadius: 8, padding: '8px 12px',
-                      }}>
-                        Your actual take-home is ${Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay).toFixed(0)}{' '}
-                        {parseFloat(actualPaycheck) < taxBreakdown.netPay ? 'lower' : 'higher'} than estimated — may be due to
-                        additional withholdings not captured here (local taxes, garnishments, extra W-4 elections).
-                      </p>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button onClick={saveVerifiedPaycheck} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
-                        {taxSaved ? <><Check size={14} /> Saved!</> : 'Save my actual paycheck'}
-                      </Button>
-                      <Button variant="secondary" onClick={() => setVerifyPhase(confirmedMonthly ? 'confirmed' : 'unconfirmed')}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )
-              }
-
-              // ── phase: confirmed — show the ACTUAL saved value ────────
-              if (verifyPhase === 'confirmed' && confirmedMonthly) {
-                return (
-                  <div style={{
-                    background: isCorrected ? 'oklch(0.20 0.04 60 / 0.35)' : 'oklch(0.20 0.05 145 / 0.25)',
-                    border: `1px solid ${isCorrected ? 'oklch(0.40 0.08 60 / 0.4)' : 'oklch(0.42 0.075 155 / 0.35)'}`,
-                    borderRadius: 12, padding: '16px 18px', marginBottom: 14,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                          <Check size={13} color={isCorrected ? 'oklch(0.72 0.14 60)' : 'oklch(0.72 0.18 145)'} />
-                          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                            color: isCorrected ? 'oklch(0.72 0.14 60)' : 'oklch(0.72 0.18 145)' }}>
-                            {taxSaved ? 'Saved!' : isCorrected ? 'Corrected take-home' : 'Confirmed take-home'}
-                          </p>
-                        </div>
-                        <p style={{
-                          fontFamily: '"Fraunces", serif', fontSize: 26, fontWeight: 700,
-                          fontVariantNumeric: 'tabular-nums', color: 'var(--text)', lineHeight: 1, marginBottom: 4,
-                        }}>
-                          ${confirmedPerPeriod!.toFixed(2)}
-                          <span style={{ fontSize: 13, fontFamily: 'inherit', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
-                            / {perLabel}
-                          </span>
-                        </p>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          ${confirmedMonthly.toFixed(0)}/mo
-                          {isCorrected && (
-                            <span> · {gap < 0 ? 'lower' : 'higher'} than the ${taxBreakdown.netPay.toFixed(2)} estimate by ${Math.abs(gap / (PERIODS_PER_MONTH[payFrequency] ?? 1)).toFixed(0)}/{perLabel.replace('2 ', '')}</span>
-                          )}
-                        </p>
-                      </div>
-                      <Button size="sm" variant="secondary" onClick={() => {
-                        setActualPaycheck(confirmedPerPeriod!.toFixed(2))
-                        setVerifyPhase('input')
-                      }}>
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                )
-              }
-
-              // ── phase: unconfirmed — ask the question ─────────────────
-              return (
-                <div style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)',
-                  borderRadius: 12, padding: '16px 18px', marginBottom: 14,
-                }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                    Does this match your actual paycheck?
-                  </p>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                    Estimated take-home:{' '}
-                    <strong style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                      ${taxBreakdown.netPay.toFixed(2)}
-                    </strong>{' '}
-                    per {perLabel}
-                  </p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Button onClick={saveTaxSettings} style={{ minWidth: 160 }}>
-                      Yes, use this amount
-                    </Button>
-                    <Button variant="secondary" onClick={() => {
-                      setActualPaycheck(taxBreakdown.netPay.toFixed(2))
-                      setVerifyPhase('input')
-                    }}>
-                      No, enter my actual amount
-                    </Button>
-                  </div>
-                </div>
-              )
-            })()}
           </>
+        ) : (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Complete the income setup in onboarding to unlock the tax estimate calculator.
+          </p>
         )}
       </Card>
 
-      {/* Categories */}
+      {/* ── Categories ───────────────────────────────────────────────────────── */}
       <Card style={{ padding: '18px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Categories</p>
@@ -548,7 +563,7 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* Merchant Rules */}
+      {/* ── Merchant Rules ────────────────────────────────────────────────────── */}
       {Object.keys(state.merchantRules || {}).length > 0 && (
         <Card style={{ padding: '18px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
