@@ -171,6 +171,8 @@ export function Settings() {
         monthlyIncome: netMonthly,
       },
     })
+    // Sync local General-settings state so a subsequent "Save Settings" click preserves this value
+    setMonthlyIncome(netMonthly.toFixed(2))
     setVerifyOverride(false)
     setTaxSaved(true)
     setTimeout(() => setTaxSaved(false), 2500)
@@ -195,6 +197,8 @@ export function Settings() {
         monthlyIncome: monthly,
       },
     })
+    // Sync local General-settings state so a subsequent "Save Settings" click preserves this value
+    setMonthlyIncome(monthly.toFixed(2))
     setVerifyOverride(false)
     setActualPaycheck('')
     setTaxSaved(true)

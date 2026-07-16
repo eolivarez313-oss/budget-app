@@ -252,7 +252,14 @@ export function Transactions() {
   }
 
   const filtered = state.transactions.filter(t => {
-    if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const desc = (t.description ?? '').toLowerCase()
+      const notes = (t.notes ?? '').toLowerCase()
+      const merchant = (t.merchantName ?? '').toLowerCase()
+      const amount = t.amount?.toString() ?? ''
+      if (!desc.includes(q) && !notes.includes(q) && !merchant.includes(q) && !amount.includes(q)) return false
+    }
     if (filterCat && t.categoryId !== filterCat) return false
     if (filterType && t.type !== filterType) return false
     if (filterMonth && !t.date.startsWith(filterMonth)) return false

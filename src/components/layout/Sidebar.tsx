@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth'
 
 const nav = [
   { to: '/home',          icon: Home,            label: 'Overview'     },
+  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard'    },
   { to: '/budgets',       icon: PieChart,        label: 'Budget'       },
   { to: '/transactions',  icon: ArrowLeftRight,  label: 'Transactions' },
   { to: '/calendar',      icon: CalendarDays,    label: 'Calendar'     },
@@ -21,7 +22,6 @@ const nav = [
   { to: '/net-worth',     icon: TrendingUp,      label: 'Net Worth'    },
   { to: '/flow',          icon: Waves,           label: 'Flow'         },
   { to: '/reports',       icon: BarChart3,       label: 'Reports'      },
-  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard'    },
   { to: '/settings',      icon: Settings,        label: 'Settings'     },
 ]
 
