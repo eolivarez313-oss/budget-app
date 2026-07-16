@@ -125,8 +125,14 @@ export function Settings() {
   const [taxSaved, setTaxSaved] = useState(false)
 
   // Income verification step
-  const [verifyOverride, setVerifyOverride] = useState(false)
+  // 'unconfirmed' = show "does this match?", 'confirmed' = show saved value, 'input' = correction input open
+  const [verifyPhase, setVerifyPhase] = useState<'unconfirmed' | 'confirmed' | 'input'>(
+    state.settings.netMonthlyIncome ? 'confirmed' : 'unconfirmed'
+  )
   const [actualPaycheck, setActualPaycheck] = useState('')
+
+  // Alias kept for the override-input path
+  const verifyOverride = verifyPhase === 'input'
 
   // Live tax preview — recalculates whenever inputs change
   const { hourlyRate, hoursPerDay, workDays } = state.settings
@@ -171,9 +177,8 @@ export function Settings() {
         monthlyIncome: netMonthly,
       },
     })
-    // Sync local General-settings state so a subsequent "Save Settings" click preserves this value
     setMonthlyIncome(netMonthly.toFixed(2))
-    setVerifyOverride(false)
+    setVerifyPhase('confirmed')
     setTaxSaved(true)
     setTimeout(() => setTaxSaved(false), 2500)
   }
@@ -197,10 +202,9 @@ export function Settings() {
         monthlyIncome: monthly,
       },
     })
-    // Sync local General-settings state so a subsequent "Save Settings" click preserves this value
     setMonthlyIncome(monthly.toFixed(2))
-    setVerifyOverride(false)
     setActualPaycheck('')
+    setVerifyPhase('confirmed')
     setTaxSaved(true)
     setTimeout(() => setTaxSaved(false), 2500)
   }
@@ -380,87 +384,137 @@ export function Settings() {
               </div>
             )}
 
-            {/* Income verification step */}
-            {taxBreakdown && !verifyOverride && (
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: '16px 18px', marginBottom: 14,
-              }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                  Does this match your actual paycheck?
-                </p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Estimated take-home: <strong style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                    ${taxBreakdown.netPay.toFixed(2)}
-                  </strong> per {({ weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month' })[payFrequency] ?? 'period'}
-                </p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Button onClick={saveTaxSettings} style={{ minWidth: 160 }}>
-                    {taxSaved ? <><Check size={14} /> Saved!</> : 'Yes, use this amount'}
-                  </Button>
-                  <Button variant="secondary" onClick={() => { setVerifyOverride(true); setActualPaycheck(taxBreakdown.netPay.toFixed(2)) }}>
-                    No, enter my actual amount
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* ── Verification / confirmation block ── */}
+            {taxBreakdown && (() => {
+              const freqLabel: Record<string, string> = {
+                weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month',
+              }
+              const perLabel = freqLabel[payFrequency] ?? 'period'
+              const confirmedMonthly = state.settings.netMonthlyIncome
+              const estimatedMonthly = taxBreakdown.annualNet / 12
+              const confirmedPerPeriod = confirmedMonthly
+                ? confirmedMonthly / (PERIODS_PER_MONTH[payFrequency] ?? 1)
+                : null
+              const gap = confirmedMonthly ? confirmedMonthly - estimatedMonthly : 0
+              const isCorrected = Math.abs(gap) > 5
 
-            {/* Override input */}
-            {taxBreakdown && verifyOverride && (
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: '16px 18px', marginBottom: 14,
-                display: 'flex', flexDirection: 'column', gap: 12,
-              }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                  Enter your actual take-home pay
-                </p>
-                <Field label={`Actual amount per ${({ weekly: 'week', biweekly: '2 weeks', 'semi-monthly': 'semi-month', monthly: 'month' })[payFrequency] ?? 'period'} ($)`}>
-                  <Input
-                    type="number" min="0" step="0.01"
-                    value={actualPaycheck}
-                    onChange={e => setActualPaycheck(e.target.value)}
-                    placeholder={taxBreakdown.netPay.toFixed(2)}
-                    autoFocus
-                  />
-                </Field>
-                {actualPaycheck && Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay) > 5 && (
-                  <p style={{
-                    fontSize: 12, color: 'var(--text-muted)',
-                    background: 'oklch(0.20 0.04 60 / 0.5)', border: '1px solid oklch(0.35 0.08 60 / 0.4)',
-                    borderRadius: 8, padding: '8px 12px',
+              // ── phase: correction input open ──────────────────────────
+              if (verifyPhase === 'input') {
+                return (
+                  <div style={{
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 12, padding: '16px 18px', marginBottom: 14,
+                    display: 'flex', flexDirection: 'column', gap: 12,
                   }}>
-                    Your actual take-home is ${Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay).toFixed(0)} {parseFloat(actualPaycheck) < taxBreakdown.netPay ? 'lower' : 'higher'} than estimated — may be due to additional withholdings not captured here (local taxes, garnishments, extra W-4 elections).
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Button onClick={saveVerifiedPaycheck} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
-                    {taxSaved ? <><Check size={14} /> Saved!</> : 'Save my actual paycheck'}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setVerifyOverride(false)}>Cancel</Button>
-                </div>
-              </div>
-            )}
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                      Enter your actual take-home pay
+                    </p>
+                    <Field label={`Actual amount per ${perLabel} ($)`}>
+                      <Input
+                        type="number" min="0" step="0.01"
+                        value={actualPaycheck}
+                        onChange={e => setActualPaycheck(e.target.value)}
+                        placeholder={taxBreakdown.netPay.toFixed(2)}
+                        autoFocus
+                      />
+                    </Field>
+                    {actualPaycheck && Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay) > 5 && (
+                      <p style={{
+                        fontSize: 12, color: 'var(--text-muted)',
+                        background: 'oklch(0.20 0.04 60 / 0.5)', border: '1px solid oklch(0.35 0.08 60 / 0.4)',
+                        borderRadius: 8, padding: '8px 12px',
+                      }}>
+                        Your actual take-home is ${Math.abs(parseFloat(actualPaycheck) - taxBreakdown.netPay).toFixed(0)}{' '}
+                        {parseFloat(actualPaycheck) < taxBreakdown.netPay ? 'lower' : 'higher'} than estimated — may be due to
+                        additional withholdings not captured here (local taxes, garnishments, extra W-4 elections).
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button onClick={saveVerifiedPaycheck} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
+                        {taxSaved ? <><Check size={14} /> Saved!</> : 'Save my actual paycheck'}
+                      </Button>
+                      <Button variant="secondary" onClick={() => setVerifyPhase(confirmedMonthly ? 'confirmed' : 'unconfirmed')}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )
+              }
 
-            {/* Persistent gap note when a corrected value is active */}
-            {state.settings.netMonthlyIncome && taxBreakdown &&
-              Math.abs(state.settings.netMonthlyIncome - taxBreakdown.annualNet / 12) > 5 && (
-              <div style={{
-                fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'flex-start', gap: 6,
-                marginBottom: 14, padding: '8px 12px',
-                background: 'oklch(0.20 0.04 60 / 0.4)', border: '1px solid oklch(0.35 0.08 60 / 0.35)',
-                borderRadius: 8,
-              }}>
-                <span>
-                  Using your corrected paycheck amount (${state.settings.netMonthlyIncome.toFixed(0)}/mo), which differs from the estimate by ${Math.abs(state.settings.netMonthlyIncome - taxBreakdown.annualNet / 12).toFixed(0)}/mo.{' '}
-                  <button
-                    onClick={() => { setVerifyOverride(true); setActualPaycheck((state.settings.netMonthlyIncome! / (PERIODS_PER_MONTH[payFrequency] ?? 1)).toFixed(2)) }}
-                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
-                    Re-verify
-                  </button>
-                </span>
-              </div>
-            )}
+              // ── phase: confirmed — show the ACTUAL saved value ────────
+              if (verifyPhase === 'confirmed' && confirmedMonthly) {
+                return (
+                  <div style={{
+                    background: isCorrected ? 'oklch(0.20 0.04 60 / 0.35)' : 'oklch(0.20 0.05 145 / 0.25)',
+                    border: `1px solid ${isCorrected ? 'oklch(0.40 0.08 60 / 0.4)' : 'oklch(0.42 0.075 155 / 0.35)'}`,
+                    borderRadius: 12, padding: '16px 18px', marginBottom: 14,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Check size={13} color={isCorrected ? 'oklch(0.72 0.14 60)' : 'oklch(0.72 0.18 145)'} />
+                          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+                            color: isCorrected ? 'oklch(0.72 0.14 60)' : 'oklch(0.72 0.18 145)' }}>
+                            {taxSaved ? 'Saved!' : isCorrected ? 'Corrected take-home' : 'Confirmed take-home'}
+                          </p>
+                        </div>
+                        <p style={{
+                          fontFamily: '"Fraunces", serif', fontSize: 26, fontWeight: 700,
+                          fontVariantNumeric: 'tabular-nums', color: 'var(--text)', lineHeight: 1, marginBottom: 4,
+                        }}>
+                          ${confirmedPerPeriod!.toFixed(2)}
+                          <span style={{ fontSize: 13, fontFamily: 'inherit', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>
+                            / {perLabel}
+                          </span>
+                        </p>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          ${confirmedMonthly.toFixed(0)}/mo
+                          {isCorrected && (
+                            <span> · {gap < 0 ? 'lower' : 'higher'} than the ${taxBreakdown.netPay.toFixed(2)} estimate by ${Math.abs(gap / (PERIODS_PER_MONTH[payFrequency] ?? 1)).toFixed(0)}/{perLabel.replace('2 ', '')}</span>
+                          )}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => {
+                        setActualPaycheck(confirmedPerPeriod!.toFixed(2))
+                        setVerifyPhase('input')
+                      }}>
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                )
+              }
+
+              // ── phase: unconfirmed — ask the question ─────────────────
+              return (
+                <div style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 12, padding: '16px 18px', marginBottom: 14,
+                }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                    Does this match your actual paycheck?
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                    Estimated take-home:{' '}
+                    <strong style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                      ${taxBreakdown.netPay.toFixed(2)}
+                    </strong>{' '}
+                    per {perLabel}
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button onClick={saveTaxSettings} style={{ minWidth: 160 }}>
+                      Yes, use this amount
+                    </Button>
+                    <Button variant="secondary" onClick={() => {
+                      setActualPaycheck(taxBreakdown.netPay.toFixed(2))
+                      setVerifyPhase('input')
+                    }}>
+                      No, enter my actual amount
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )}
       </Card>
