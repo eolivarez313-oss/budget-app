@@ -10,33 +10,38 @@ interface Props {
   label?: string
 }
 
-export function PlaidLinkButton({ onSuccess, label = 'Connect Bank Account' }: Props) {
-  const [linkToken, setLinkToken] = useState<string | null>(null)
-  const [status, setStatus] = useState<'loading-token' | 'ready' | 'syncing' | 'error'>('loading-token')
+// Inner component: only mounted once we have a valid token.
+// This guarantees usePlaidLink is never called with null/empty token.
+function PlaidLinkInner({
+  linkToken,
+  label,
+  onSuccess,
+}: {
+  linkToken: string
+  label: string
+  onSuccess: () => void
+}) {
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    createLinkToken()
-      .then(token => { setLinkToken(token); setStatus('ready') })
-      .catch(e => { setError(e.message); setStatus('error') })
-  }, [])
-
-  const handleSuccess: PlaidLinkOnSuccess = useCallback(async (publicToken, metadata) => {
-    setStatus('syncing')
-    setError(null)
-    try {
-      await exchangeToken(publicToken, metadata)
-      await syncPlaidData()
-      onSuccess()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to link account')
-      setStatus('error')
-    }
-  }, [onSuccess])
+  const handleSuccess: PlaidLinkOnSuccess = useCallback(
+    async (publicToken, metadata) => {
+      setSyncing(true)
+      setError(null)
+      try {
+        await exchangeToken(publicToken, metadata)
+        await syncPlaidData()
+        onSuccess()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to link account')
+        setSyncing(false)
+      }
+    },
+    [onSuccess],
+  )
 
   const handleExit: PlaidLinkOnExit = useCallback((err) => {
-    if (err) { setError(err.error_message ?? 'Link cancelled'); setStatus('error') }
-    else { setStatus('ready') }
+    if (err) setError(err.error_message ?? 'Link cancelled')
   }, [])
 
   const { open, ready } = usePlaidLink({
@@ -45,24 +50,58 @@ export function PlaidLinkButton({ onSuccess, label = 'Connect Bank Account' }: P
     onExit: handleExit,
   })
 
-  const isLoading = status === 'loading-token' || status === 'syncing'
-  const statusLabel = status === 'syncing' ? 'Syncing transactions…' : status === 'loading-token' ? 'Preparing…' : label
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <Button
         onClick={() => open()}
-        disabled={!ready || isLoading}
+        disabled={!ready || syncing}
         style={{ display: 'flex', alignItems: 'center', gap: 8 }}
       >
-        {isLoading
+        {syncing
           ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
           : <Link2 size={15} />}
-        {statusLabel}
+        {syncing ? 'Syncing transactions…' : label}
       </Button>
       {error && (
         <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>{error}</p>
       )}
     </div>
   )
+}
+
+export function PlaidLinkButton({ onSuccess, label = 'Connect Bank Account' }: Props) {
+  const [linkToken, setLinkToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    createLinkToken()
+      .then(token => { setLinkToken(token); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }, [])
+
+  if (loading) {
+    return (
+      <Button disabled style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+        Preparing…
+      </Button>
+    )
+  }
+
+  if (error || !linkToken) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <Button disabled style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link2 size={15} />
+          {label}
+        </Button>
+        <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>
+          {error ?? 'Failed to initialize'}
+        </p>
+      </div>
+    )
+  }
+
+  return <PlaidLinkInner linkToken={linkToken} label={label} onSuccess={onSuccess} />
 }
