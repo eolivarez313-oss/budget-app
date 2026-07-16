@@ -40,7 +40,7 @@ export function PlaidLinkButton({ onSuccess, label = 'Connect Bank Account' }: P
   }, [])
 
   const { open, ready } = usePlaidLink({
-    token: linkToken ?? '',
+    token: linkToken,
     onSuccess: handleSuccess,
     onExit: handleExit,
   })
