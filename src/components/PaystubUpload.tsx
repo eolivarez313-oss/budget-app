@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, DragEvent, ChangeEvent } from 'react'
-import { Upload, X, Plus, AlertTriangle, CheckCircle, ChevronRight, Loader2, FileImage, Info } from 'lucide-react'
+import { Upload, X, Plus, AlertTriangle, CheckCircle, ChevronRight, Loader2, FileText, FileImage, Info } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { Input, Field } from './ui/Input'
 import { parsePaystubText, checkConsistency, ParsedPaystub } from '../lib/paystubParser'
+import { detectKind, validateFile, extractText, FileKind } from '../lib/paystubExtractor'
 import { savePaystub } from '../lib/paystubDb'
 import { Paystub, PaystubDeduction } from '../types'
 import { uuid } from '../utils/uuid'
@@ -21,6 +22,12 @@ interface Props {
 }
 
 type Step = 'upload' | 'processing' | 'review' | 'done'
+
+interface QueuedFile {
+  file: File
+  kind: FileKind
+  previewUrl?: string  // only for images
+}
 
 interface EditablePaystub {
   employerName: string
@@ -160,41 +167,76 @@ function DeductionRows({
   )
 }
 
+function FileThumb({ qf, index, onRemove }: { qf: QueuedFile; index: number; onRemove: () => void }) {
+  const isImg = qf.kind === 'image' || qf.kind === 'heic'
+  const kindLabel: Record<FileKind, string> = {
+    image: 'Image', heic: 'HEIC', pdf: 'PDF', docx: 'DOCX', unsupported: '?',
+  }
+  return (
+    <div style={{ position: 'relative', width: 100, height: 130, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+      {isImg && qf.previewUrl
+        ? <img src={qf.previewUrl} alt={`Page ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 8 }}>
+            {qf.kind === 'pdf' ? <FileText size={32} color="var(--text-muted)" /> : <FileImage size={32} color="var(--text-muted)" />}
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', wordBreak: 'break-all' }}>
+              {qf.file.name.length > 20 ? qf.file.name.slice(0, 18) + '…' : qf.file.name}
+            </span>
+          </div>
+        )
+      }
+      <div style={{ position: 'absolute', top: 4, right: 4 }}>
+        <button onClick={e => { e.stopPropagation(); onRemove() }}
+          style={{ background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <X size={11} color="#fff" />
+        </button>
+      </div>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.55)', padding: '3px 6px', display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, color: '#fff' }}>Page {index + 1}</span>
+        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>{kindLabel[qf.kind]}</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfirmed }: Props) {
   const [step, setStep] = useState<Step>('upload')
-  const [imageFiles, setImageFiles] = useState<File[]>([])
-  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [queue, setQueue] = useState<QueuedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [ocrProgress, setOcrProgress] = useState(0)
-  const [ocrStatus, setOcrStatus] = useState('')
+  const [progress, setProgress] = useState(0)
+  const [progressStatus, setProgressStatus] = useState('')
+  const [extractionMethod, setExtractionMethod] = useState('')
   const [parsedRaw, setParsedRaw] = useState<ParsedPaystub | null>(null)
   const [form, setForm] = useState<EditablePaystub | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deductionAlerts, setDeductionAlerts] = useState<string[]>([])
+  const [extractionWarnings, setExtractionWarnings] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
-    setStep('upload'); setImageFiles([]); setImagePreviews([])
-    setOcrProgress(0); setOcrStatus(''); setParsedRaw(null); setForm(null)
-    setSaving(false); setError(null); setDeductionAlerts([])
+    queue.forEach(q => { if (q.previewUrl) URL.revokeObjectURL(q.previewUrl) })
+    setStep('upload'); setQueue([])
+    setProgress(0); setProgressStatus(''); setExtractionMethod('')
+    setParsedRaw(null); setForm(null)
+    setSaving(false); setError(null); setDeductionAlerts([]); setExtractionWarnings([])
   }
 
   function handleClose() { reset(); onClose() }
 
-  function addFiles(files: File[]) {
-    const imgs = files.filter(f => f.type.startsWith('image/'))
-    if (!imgs.length) { setError('Please upload image files (PNG, JPG, WEBP).'); return }
-    const oversized = imgs.filter(f => f.size > 15 * 1024 * 1024)
-    if (oversized.length) { setError('One or more images exceed 15 MB. Please use a smaller file.'); return }
+  async function addFiles(files: File[]) {
     setError(null)
-    setImageFiles(prev => [...prev, ...imgs])
-    imgs.forEach(f => {
-      const url = URL.createObjectURL(f)
-      setImagePreviews(prev => [...prev, url])
-    })
+    const newEntries: QueuedFile[] = []
+    for (const file of files) {
+      const kind = await detectKind(file)
+      const err = validateFile(file, kind)
+      if (err) { setError(err); return }
+      const previewUrl = (kind === 'image') ? URL.createObjectURL(file) : undefined
+      newEntries.push({ file, kind, previewUrl })
+    }
+    setQueue(prev => [...prev, ...newEntries])
   }
 
   function handleFileInput(e: ChangeEvent<HTMLInputElement>) {
@@ -207,39 +249,35 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
     addFiles(Array.from(e.dataTransfer.files))
   }
 
-  function removeImage(i: number) {
-    URL.revokeObjectURL(imagePreviews[i])
-    setImageFiles(prev => prev.filter((_, j) => j !== i))
-    setImagePreviews(prev => prev.filter((_, j) => j !== i))
+  function removeFile(i: number) {
+    setQueue(prev => {
+      const q = prev[i]
+      if (q.previewUrl) URL.revokeObjectURL(q.previewUrl)
+      return prev.filter((_, j) => j !== i)
+    })
   }
 
-  async function runOCR() {
-    if (!imageFiles.length) { setError('Please add at least one image.'); return }
-    setStep('processing'); setOcrProgress(0); setOcrStatus('Loading OCR engine…')
+  async function runExtraction() {
+    if (!queue.length) { setError('Please add at least one file.'); return }
+    setStep('processing'); setProgress(0); setProgressStatus('Starting…')
 
     try {
-      const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng', 1, {
-        logger: (m: { status: string; progress: number }) => {
-          setOcrStatus(m.status)
-          setOcrProgress(Math.round((m.progress || 0) * 100))
-        },
-      })
+      const result = await extractText(
+        queue.map(q => q.file),
+        (status, pct) => { setProgressStatus(status); setProgress(pct) }
+      )
 
-      let combinedText = ''
-      for (let i = 0; i < imageFiles.length; i++) {
-        setOcrStatus(`Reading page ${i + 1} of ${imageFiles.length}…`)
-        const { data } = await worker.recognize(imageFiles[i])
-        combinedText += (i > 0 ? '\n---PAGE BREAK---\n' : '') + data.text
-      }
-      await worker.terminate()
+      setExtractionMethod(result.method)
+      setExtractionWarnings(result.warnings)
 
-      const parsed = parsePaystubText(combinedText)
-      parsed.rawText = combinedText
+      const parsed = parsePaystubText(result.text)
+      parsed.rawText = result.text
+      // Merge extraction warnings into parser warnings
+      parsed.warnings = [...result.warnings, ...parsed.warnings]
       setParsedRaw(parsed)
       setForm(toEditable(parsed))
 
-      // Check for deduction changes vs most recent prior paystub
+      // Deduction change alerts vs most recent prior paystub
       if (existingPaystubs.length > 0) {
         const prior = existingPaystubs[0]
         const alerts: string[] = []
@@ -251,10 +289,10 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
           for (const nd of newDeds) {
             const od = oldDeds.find(d => d.name.toLowerCase() === nd.name.toLowerCase())
             if (!od && nd.current) {
-              alerts.push(`New ${label} deduction detected: ${nd.name} (${fmt(nd.current)})`)
+              alerts.push(`New ${label} deduction detected: ${nd.name} (${fmtAmt(nd.current)})`)
             } else if (od && nd.current && od.current && Math.abs(nd.current - od.current) >= 1) {
               const dir = nd.current > od.current ? 'increased' : 'decreased'
-              alerts.push(`${nd.name} ${dir} by ${fmt(Math.abs(nd.current - od.current))} (was ${fmt(od.current)}, now ${fmt(nd.current)})`)
+              alerts.push(`${nd.name} ${dir} by ${fmtAmt(Math.abs(nd.current - od.current))} (was ${fmtAmt(od.current)}, now ${fmtAmt(nd.current)})`)
             }
           }
         }
@@ -265,7 +303,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
 
       setStep('review')
     } catch (err) {
-      setError(`OCR failed: ${err instanceof Error ? err.message : String(err)}`)
+      setError(err instanceof Error ? err.message : String(err))
       setStep('upload')
     }
   }
@@ -290,7 +328,6 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
     setForm(f => f ? { ...f, [field]: value } : f)
   }
 
-  // Consistency check on current form values
   const consistencyCheck = form ? checkConsistency({
     ...parsedRaw!,
     grossPay: parseFloat(form.grossPay) || null,
@@ -303,7 +340,6 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
     postTaxDeductions: form.postTaxDeductions.map(d => ({ name: d.name, current: parseFloat(d.current) || null, ytd: parseFloat(d.ytd) || null })),
   }) : null
 
-  // YTD consistency: new ytdGross >= prior ytdGross?
   const ytdWarning = (() => {
     if (!form?.ytdGross || !existingPaystubs.length) return null
     const newYtd = parseFloat(form.ytdGross)
@@ -327,7 +363,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
       {step === 'upload' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Upload a photo or screenshot of your paystub. Add multiple images if your paystub spans more than one page.
+            Upload a photo, PDF, or Word document of your paystub. Multi-page files are fully processed. Add multiple files if your paystub spans pages.
           </p>
 
           {/* Drop zone */}
@@ -344,31 +380,26 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
             }}>
             <Upload size={28} color={isDragging ? GREEN : 'var(--text-muted)'} style={{ margin: '0 auto 10px' }} />
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-              Drop paystub image here, or click to browse
+              Drop paystub here, or click to browse
             </p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>PNG, JPG, WEBP · up to 15 MB per image</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              JPG · PNG · WEBP · HEIC (iPhone) · PDF · DOCX · up to 20 MB
+            </p>
             <input
-              ref={fileInputRef} type="file" accept="image/*" multiple hidden
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.heic,.heif,.pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              multiple
+              hidden
               onChange={handleFileInput}
             />
           </div>
 
-          {/* Image previews */}
-          {imagePreviews.length > 0 && (
+          {/* File previews */}
+          {queue.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {imagePreviews.map((url, i) => (
-                <div key={i} style={{ position: 'relative', width: 100, height: 130, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  <img src={url} alt={`Page ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', top: 4, right: 4 }}>
-                    <button onClick={e => { e.stopPropagation(); removeImage(i) }}
-                      style={{ background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <X size={11} color="#fff" />
-                    </button>
-                  </div>
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', padding: '3px 6px' }}>
-                    <span style={{ fontSize: 10, color: '#fff' }}>Page {i + 1}</span>
-                  </div>
-                </div>
+              {queue.map((qf, i) => (
+                <FileThumb key={i} qf={qf} index={i} onRemove={() => removeFile(i)} />
               ))}
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -384,7 +415,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
           )}
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <Button onClick={runOCR} disabled={!imageFiles.length} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Button onClick={runExtraction} disabled={!queue.length} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Extract paystub data <ChevronRight size={14} />
             </Button>
             <Button variant="secondary" onClick={handleClose}>Cancel</Button>
@@ -398,23 +429,23 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
           <Loader2 size={36} color={GREEN} style={{ animation: 'spin 1s linear infinite' }} />
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Reading your paystub…</p>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{ocrStatus}</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{progressStatus}</p>
           </div>
           <div style={{ width: '100%', maxWidth: 320, background: 'var(--border)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: GREEN, borderRadius: 99, width: `${ocrProgress}%`, transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', background: GREEN, borderRadius: 99, width: `${progress}%`, transition: 'width 0.3s' }} />
           </div>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{ocrProgress}%</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{progress}%</p>
         </div>
       )}
 
       {/* ── Step: Review ───────────────────────────────────────────────────── */}
       {step === 'review' && form && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Confidence banner */}
+          {/* Confidence / method banner */}
           {parsedRaw && (
             <div style={{
               display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', borderRadius: 8,
-              background: parsedRaw.confidence === 'high' ? 'rgba(6,198,138,0.08)' : parsedRaw.confidence === 'medium' ? `rgba(245,158,11,0.08)` : 'rgba(239,68,68,0.08)',
+              background: parsedRaw.confidence === 'high' ? 'rgba(6,198,138,0.08)' : parsedRaw.confidence === 'medium' ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)',
               border: `1px solid ${parsedRaw.confidence === 'high' ? GREEN : parsedRaw.confidence === 'medium' ? WARN : DANGER}`,
             }}>
               <Info size={14} color={parsedRaw.confidence === 'high' ? GREEN : parsedRaw.confidence === 'medium' ? WARN : DANGER} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -422,6 +453,9 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
                 <span style={{ fontWeight: 600, color: 'var(--text)' }}>
                   {parsedRaw.confidence === 'high' ? 'Good extraction' : parsedRaw.confidence === 'medium' ? 'Partial extraction' : 'Low confidence'}
                 </span>
+                {extractionMethod && (
+                  <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>via {extractionMethod}</span>
+                )}
                 {' — '}
                 <span style={{ color: 'var(--text-muted)' }}>
                   {parsedRaw.confidence === 'high'
@@ -431,7 +465,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
                     : 'Few fields identified. Please enter all values manually.'}
                 </span>
                 {parsedRaw.warnings.map((w, i) => (
-                  <p key={i} style={{ marginTop: 4, color: WARN }}>{w}</p>
+                  <p key={i} style={{ marginTop: 4, color: WARN }}>⚠ {w}</p>
                 ))}
               </div>
             </div>
@@ -439,7 +473,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
 
           {/* Deduction change alerts */}
           {deductionAlerts.length > 0 && (
-            <div style={{ background: `rgba(245,158,11,0.08)`, border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: WARN, marginBottom: 6 }}>⚠ Deduction changes detected vs. your last paystub:</p>
               {deductionAlerts.map((a, i) => (
                 <p key={i} style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>• {a}</p>
@@ -457,13 +491,13 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
 
           {/* YTD warning */}
           {ytdWarning && (
-            <div style={{ background: `rgba(245,158,11,0.08)`, border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
               <p style={{ fontSize: 12, color: WARN }}>⚠ {ytdWarning}</p>
             </div>
           )}
 
           {/* ── Fields ────────────────────────────────────────────────────── */}
-          <SectionLabel>Employer & Dates</SectionLabel>
+          <SectionLabel>Employer &amp; Dates</SectionLabel>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px', gap: 10 }}>
             <Field label="Employer name">
               <Input value={form.employerName} onChange={e => setField('employerName', e.target.value)} placeholder="e.g. Acme Corp" />
@@ -559,7 +593,6 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
             onRemove={i => setForm(f => f ? { ...f, postTaxDeductions: f.postTaxDeductions.filter((_, j) => j !== i) } : f)}
           />
 
-          {/* PTO (optional) */}
           {(form.ptoAccrued || form.ptoUsed || form.ptoRemaining) ? (
             <>
               <SectionLabel>PTO / Vacation Balance</SectionLabel>
@@ -627,4 +660,4 @@ function ColHeaders() {
   )
 }
 
-function fmt(n: number): string { return `$${n.toFixed(2)}` }
+function fmtAmt(n: number): string { return `$${n.toFixed(2)}` }
