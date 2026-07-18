@@ -115,10 +115,32 @@ export interface AppSettings {
 
 // ── Paystub types ─────────────────────────────────────────────────────────────
 
+/** Legacy deduction shape (old paystubs only) */
 export interface PaystubDeduction {
   name: string
   current: number | null
   ytd: number | null
+}
+
+/** Current-period earning line item */
+export interface PaystubEarning {
+  label: string
+  rate?: number | null
+  hours?: number | null
+  amount: number
+}
+
+/** Current-period deduction line item (flat, no YTD) */
+export interface PaystubLineItem {
+  name: string
+  amount: number
+}
+
+/** Current-period tax line item */
+export interface PaystubTax {
+  label: string         // as shown on paystub: "FICA", "FIT", "SIT:NY"
+  canonicalName: string // human-readable: "Social Security", "Federal Income Tax"
+  amount: number
 }
 
 export interface Paystub {
@@ -129,19 +151,29 @@ export interface Paystub {
   periodStart?: string
   periodEnd?: string
   grossPay?: number | null
+  netPay?: number | null
+
+  // New structured breakdown (current period only, no YTD)
+  earnings?: PaystubEarning[]
+  deductions?: PaystubLineItem[]
+  taxes?: PaystubTax[]
+  totalDeductions?: number | null
+  totalTaxes?: number | null
+
+  // Legacy fields — kept for backward compat with existing paystubs
   federalTax?: number | null
   stateTax?: number | null
   socialSecurity?: number | null
   medicare?: number | null
-  netPay?: number | null
   ytdGross?: number | null
   ytdFederalTax?: number | null
   ytdStateTax?: number | null
   ytdSocialSecurity?: number | null
   ytdMedicare?: number | null
   ytdNet?: number | null
-  preTaxDeductions: PaystubDeduction[]
-  postTaxDeductions: PaystubDeduction[]
+  preTaxDeductions?: PaystubDeduction[]
+  postTaxDeductions?: PaystubDeduction[]
+
   ptoAccrued?: number | null
   ptoUsed?: number | null
   ptoRemaining?: number | null

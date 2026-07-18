@@ -3,10 +3,10 @@ import { Upload, X, Plus, AlertTriangle, CheckCircle, ChevronRight, Loader2, Fil
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { Input, Field } from './ui/Input'
-import { parsePaystubText, checkConsistency, ParsedPaystub, FieldConfidence } from '../lib/paystubParser'
+import { parsePaystub, checkConsistency, ParsedPaystub, FieldConfidence, ParsedEarning, ParsedLineItem, ParsedTax } from '../lib/paystubParser'
 import { detectKind, validateFile, extractText, FileKind } from '../lib/paystubExtractor'
 import { savePaystub } from '../lib/paystubDb'
-import { Paystub, PaystubDeduction } from '../types'
+import { Paystub, PaystubEarning, PaystubLineItem, PaystubTax } from '../types'
 import { uuid } from '../utils/uuid'
 
 const GREEN = '#06C68A'
@@ -26,28 +26,25 @@ type Step = 'upload' | 'processing' | 'review' | 'done'
 interface QueuedFile {
   file: File
   kind: FileKind
-  previewUrl?: string  // only for images
+  previewUrl?: string
 }
+
+interface EditableEarning { label: string; amount: string }
+interface EditableDeduction { name: string; amount: string }
+interface EditableTax { label: string; canonicalName: string; amount: string }
 
 interface EditablePaystub {
   employerName: string
   payDate: string
   periodStart: string
   periodEnd: string
+  earnings: EditableEarning[]
   grossPay: string
-  federalTax: string
-  stateTax: string
-  socialSecurity: string
-  medicare: string
+  deductions: EditableDeduction[]
+  totalDeductions: string
+  taxes: EditableTax[]
+  totalTaxes: string
   netPay: string
-  ytdGross: string
-  ytdFederalTax: string
-  ytdStateTax: string
-  ytdSocialSecurity: string
-  ytdMedicare: string
-  ytdNet: string
-  preTaxDeductions: { name: string; current: string; ytd: string }[]
-  postTaxDeductions: { name: string; current: string; ytd: string }[]
   ptoAccrued: string
   ptoUsed: string
   ptoRemaining: string
@@ -60,20 +57,13 @@ function toEditable(p: ParsedPaystub): EditablePaystub {
     payDate: p.payDate ?? '',
     periodStart: p.periodStart ?? '',
     periodEnd: p.periodEnd ?? '',
+    earnings: p.earnings.map(e => ({ label: e.label, amount: n(e.amount) })),
     grossPay: n(p.grossPay),
-    federalTax: n(p.federalTax),
-    stateTax: n(p.stateTax),
-    socialSecurity: n(p.socialSecurity),
-    medicare: n(p.medicare),
+    deductions: p.deductions.map(d => ({ name: d.name, amount: n(d.amount) })),
+    totalDeductions: n(p.totalDeductions),
+    taxes: p.taxes.map(t => ({ label: t.label, canonicalName: t.canonicalName, amount: n(t.amount) })),
+    totalTaxes: n(p.totalTaxes),
     netPay: n(p.netPay),
-    ytdGross: n(p.ytdGross),
-    ytdFederalTax: n(p.ytdFederalTax),
-    ytdStateTax: n(p.ytdStateTax),
-    ytdSocialSecurity: n(p.ytdSocialSecurity),
-    ytdMedicare: n(p.ytdMedicare),
-    ytdNet: n(p.ytdNet),
-    preTaxDeductions: p.preTaxDeductions.map(d => ({ name: d.name, current: n(d.current), ytd: n(d.ytd) })),
-    postTaxDeductions: p.postTaxDeductions.map(d => ({ name: d.name, current: n(d.current), ytd: n(d.ytd) })),
     ptoAccrued: n(p.ptoAccrued),
     ptoUsed: n(p.ptoUsed),
     ptoRemaining: n(p.ptoRemaining),
@@ -82,6 +72,20 @@ function toEditable(p: ParsedPaystub): EditablePaystub {
 
 function fromEditable(e: EditablePaystub): Paystub {
   const n = (s: string) => s.trim() ? parseFloat(s.replace(/,/g, '')) || null : null
+  const na = (s: string) => s.trim() ? parseFloat(s.replace(/,/g, '')) || 0 : 0
+
+  const earnings: PaystubEarning[] = e.earnings
+    .filter(ea => ea.label.trim() && ea.amount.trim())
+    .map(ea => ({ label: ea.label.trim(), amount: na(ea.amount) }))
+
+  const deductions: PaystubLineItem[] = e.deductions
+    .filter(d => d.name.trim() && d.amount.trim())
+    .map(d => ({ name: d.name.trim(), amount: na(d.amount) }))
+
+  const taxes: PaystubTax[] = e.taxes
+    .filter(t => t.label.trim() && t.amount.trim())
+    .map(t => ({ label: t.label.trim(), canonicalName: t.canonicalName.trim() || t.label.trim(), amount: na(t.amount) }))
+
   return {
     id: uuid(),
     employerName: e.employerName.trim() || undefined,
@@ -89,23 +93,14 @@ function fromEditable(e: EditablePaystub): Paystub {
     periodStart: e.periodStart.trim() || undefined,
     periodEnd: e.periodEnd.trim() || undefined,
     grossPay: n(e.grossPay),
-    federalTax: n(e.federalTax),
-    stateTax: n(e.stateTax),
-    socialSecurity: n(e.socialSecurity),
-    medicare: n(e.medicare),
     netPay: n(e.netPay),
-    ytdGross: n(e.ytdGross),
-    ytdFederalTax: n(e.ytdFederalTax),
-    ytdStateTax: n(e.ytdStateTax),
-    ytdSocialSecurity: n(e.ytdSocialSecurity),
-    ytdMedicare: n(e.ytdMedicare),
-    ytdNet: n(e.ytdNet),
-    preTaxDeductions: e.preTaxDeductions
-      .filter(d => d.name && (d.current || d.ytd))
-      .map(d => ({ name: d.name, current: n(d.current), ytd: n(d.ytd) } as PaystubDeduction)),
-    postTaxDeductions: e.postTaxDeductions
-      .filter(d => d.name && (d.current || d.ytd))
-      .map(d => ({ name: d.name, current: n(d.current), ytd: n(d.ytd) } as PaystubDeduction)),
+    earnings,
+    deductions,
+    taxes,
+    totalDeductions: n(e.totalDeductions),
+    totalTaxes: n(e.totalTaxes),
+    preTaxDeductions: [],
+    postTaxDeductions: [],
     ptoAccrued: n(e.ptoAccrued),
     ptoUsed: n(e.ptoUsed),
     ptoRemaining: n(e.ptoRemaining),
@@ -113,65 +108,11 @@ function fromEditable(e: EditablePaystub): Paystub {
   }
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function DeductionRows({
-  deductions,
-  onChange,
-  onAdd,
-  onRemove,
-}: {
-  deductions: { name: string; current: string; ytd: string }[]
-  onChange: (i: number, field: 'name' | 'current' | 'ytd', val: string) => void
-  onAdd: () => void
-  onRemove: (i: number) => void
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {deductions.map((d, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 28px', gap: 6, alignItems: 'center' }}>
-          <Input
-            placeholder="Name (e.g. 401(k))"
-            value={d.name}
-            onChange={e => onChange(i, 'name', e.target.value)}
-          />
-          <Input
-            type="number" min="0" step="0.01" placeholder="Current"
-            value={d.current}
-            onChange={e => onChange(i, 'current', e.target.value)}
-          />
-          <Input
-            type="number" min="0" step="0.01" placeholder="YTD"
-            value={d.ytd}
-            onChange={e => onChange(i, 'ytd', e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => onRemove(i)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
-            <X size={14} />
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={onAdd}
-        style={{
-          background: 'none', border: '1px dashed var(--border)', borderRadius: 6,
-          padding: '5px 10px', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)',
-          display: 'flex', alignItems: 'center', gap: 4, width: 'fit-content',
-        }}>
-        <Plus size={11} /> Add row
-      </button>
-    </div>
-  )
-}
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function FileThumb({ qf, index, onRemove }: { qf: QueuedFile; index: number; onRemove: () => void }) {
   const isImg = qf.kind === 'image' || qf.kind === 'heic'
-  const kindLabel: Record<FileKind, string> = {
-    image: 'Image', heic: 'HEIC', pdf: 'PDF', docx: 'DOCX', unsupported: '?',
-  }
+  const kindLabel: Record<FileKind, string> = { image: 'Image', heic: 'HEIC', pdf: 'PDF', docx: 'DOCX', unsupported: '?' }
   return (
     <div style={{ position: 'relative', width: 100, height: 130, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
       {isImg && qf.previewUrl
@@ -199,7 +140,89 @@ function FileThumb({ qf, index, onRemove }: { qf: QueuedFile; index: number; onR
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: -4, marginTop: 4 }}>
+      {children}
+    </p>
+  )
+}
+
+function ConfidenceField({ label, confidence, children }: { label: string; confidence?: FieldConfidence; children: React.ReactNode }) {
+  const border = confidence === 'medium' ? `1px solid ${WARN}` : confidence === 'low' ? `1px solid ${DANGER}` : undefined
+  const bg = confidence === 'medium' ? 'rgba(245,158,11,0.06)' : confidence === 'low' ? 'rgba(239,68,68,0.06)' : undefined
+  return (
+    <div style={{ borderRadius: 6, border, background: bg, padding: border ? '4px 6px 2px' : undefined }}>
+      <Field label={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {label}
+          {confidence === 'medium' && <span style={{ fontSize: 9, background: WARN, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>CHECK</span>}
+          {confidence === 'low' && <span style={{ fontSize: 9, background: DANGER, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>MISSING</span>}
+        </span>
+      }>{children}</Field>
+    </div>
+  )
+}
+
+function LineItemTable<T extends { label?: string; name?: string; amount: string; canonicalName?: string }>({
+  rows,
+  onChange,
+  onAdd,
+  onRemove,
+  showCanonical,
+}: {
+  rows: T[]
+  onChange: (i: number, field: keyof T, val: string) => void
+  onAdd: () => void
+  onRemove: (i: number) => void
+  showCanonical?: boolean
+}) {
+  const cols = showCanonical
+    ? 'minmax(100px,1fr) minmax(120px,1.2fr) 90px 24px'
+    : 'minmax(140px,1fr) 90px 24px'
+  const headers = showCanonical ? ['Label', 'Description', 'Amount', ''] : ['Name', 'Amount', '']
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6 }}>
+        {headers.map(h => (
+          <span key={h} style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+        ))}
+      </div>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center' }}>
+          <Input
+            placeholder={showCanonical ? 'e.g. FICA' : 'e.g. Union Dues'}
+            value={(row.label ?? row.name ?? '') as string}
+            onChange={e => onChange(i, (showCanonical ? 'label' : 'name') as keyof T, e.target.value)}
+          />
+          {showCanonical && (
+            <Input
+              placeholder="Social Security"
+              value={(row.canonicalName ?? '') as string}
+              onChange={e => onChange(i, 'canonicalName' as keyof T, e.target.value)}
+            />
+          )}
+          <Input
+            type="number" min="0" step="0.01" placeholder="0.00"
+            value={row.amount}
+            onChange={e => onChange(i, 'amount' as keyof T, e.target.value)}
+          />
+          <button type="button" onClick={() => onRemove(i)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={onAdd}
+        style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, width: 'fit-content' }}>
+        <Plus size={11} /> Add row
+      </button>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfirmed }: Props) {
   const [step, setStep] = useState<Step>('upload')
@@ -213,7 +236,6 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deductionAlerts, setDeductionAlerts] = useState<string[]>([])
-  const [extractionWarnings, setExtractionWarnings] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
@@ -221,7 +243,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
     setStep('upload'); setQueue([])
     setProgress(0); setProgressStatus(''); setExtractionMethod('')
     setParsedRaw(null); setForm(null)
-    setSaving(false); setError(null); setDeductionAlerts([]); setExtractionWarnings([])
+    setSaving(false); setError(null); setDeductionAlerts([])
   }
 
   function handleClose() { reset(); onClose() }
@@ -233,7 +255,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
       const kind = await detectKind(file)
       const err = validateFile(file, kind)
       if (err) { setError(err); return }
-      const previewUrl = (kind === 'image') ? URL.createObjectURL(file) : undefined
+      const previewUrl = kind === 'image' ? URL.createObjectURL(file) : undefined
       newEntries.push({ file, kind, previewUrl })
     }
     setQueue(prev => [...prev, ...newEntries])
@@ -251,8 +273,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
 
   function removeFile(i: number) {
     setQueue(prev => {
-      const q = prev[i]
-      if (q.previewUrl) URL.revokeObjectURL(q.previewUrl)
+      const q = prev[i]; if (q.previewUrl) URL.revokeObjectURL(q.previewUrl)
       return prev.filter((_, j) => j !== i)
     })
   }
@@ -260,19 +281,15 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
   async function runExtraction() {
     if (!queue.length) { setError('Please add at least one file.'); return }
     setStep('processing'); setProgress(0); setProgressStatus('Starting…')
-
     try {
       const result = await extractText(
         queue.map(q => q.file),
         (status, pct) => { setProgressStatus(status); setProgress(pct) }
       )
-
       setExtractionMethod(result.method)
-      setExtractionWarnings(result.warnings)
 
-      const parsed = parsePaystubText(result.text)
+      const parsed = parsePaystub(result)
       parsed.rawText = result.text
-      // Merge extraction warnings into parser warnings
       parsed.warnings = [...result.warnings, ...parsed.warnings]
       setParsedRaw(parsed)
       setForm(toEditable(parsed))
@@ -281,23 +298,19 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
       if (existingPaystubs.length > 0) {
         const prior = existingPaystubs[0]
         const alerts: string[] = []
-        const checkDed = (
-          newDeds: typeof parsed.preTaxDeductions,
-          oldDeds: PaystubDeduction[],
-          label: string
-        ) => {
-          for (const nd of newDeds) {
-            const od = oldDeds.find(d => d.name.toLowerCase() === nd.name.toLowerCase())
-            if (!od && nd.current) {
-              alerts.push(`New ${label} deduction detected: ${nd.name} (${fmtAmt(nd.current)})`)
-            } else if (od && nd.current && od.current && Math.abs(nd.current - od.current) >= 1) {
-              const dir = nd.current > od.current ? 'increased' : 'decreased'
-              alerts.push(`${nd.name} ${dir} by ${fmtAmt(Math.abs(nd.current - od.current))} (was ${fmtAmt(od.current)}, now ${fmtAmt(nd.current)})`)
-            }
+        const priorDeds: { name: string; amount: number }[] = [
+          ...(prior.deductions ?? []),
+          ...(prior.preTaxDeductions ?? []).map(d => ({ name: d.name, amount: d.current ?? 0 })),
+          ...(prior.postTaxDeductions ?? []).map(d => ({ name: d.name, amount: d.current ?? 0 })),
+        ]
+        for (const nd of parsed.deductions) {
+          const od = priorDeds.find(d => d.name.toLowerCase() === nd.name.toLowerCase())
+          if (!od && nd.amount > 0) alerts.push(`New deduction detected: ${nd.name} ($${nd.amount.toFixed(2)})`)
+          else if (od && Math.abs(nd.amount - od.amount) >= 1) {
+            const dir = nd.amount > od.amount ? 'increased' : 'decreased'
+            alerts.push(`${nd.name} ${dir} by $${Math.abs(nd.amount - od.amount).toFixed(2)} (was $${od.amount.toFixed(2)}, now $${nd.amount.toFixed(2)})`)
           }
         }
-        checkDed(parsed.preTaxDeductions, prior.preTaxDeductions, 'pre-tax')
-        checkDed(parsed.postTaxDeductions, prior.postTaxDeductions, 'post-tax')
         setDeductionAlerts(alerts)
       }
 
@@ -324,31 +337,30 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
     }
   }
 
-  function setField(field: keyof EditablePaystub, value: string) {
-    setForm(f => f ? { ...f, [field]: value } : f)
-  }
-
-  const consistencyCheck = form ? checkConsistency({
-    ...parsedRaw!,
-    grossPay: parseFloat(form.grossPay) || null,
-    federalTax: parseFloat(form.federalTax) || null,
-    stateTax: parseFloat(form.stateTax) || null,
-    socialSecurity: parseFloat(form.socialSecurity) || null,
-    medicare: parseFloat(form.medicare) || null,
-    netPay: parseFloat(form.netPay) || null,
-    preTaxDeductions: form.preTaxDeductions.map(d => ({ name: d.name, current: parseFloat(d.current) || null, ytd: parseFloat(d.ytd) || null })),
-    postTaxDeductions: form.postTaxDeductions.map(d => ({ name: d.name, current: parseFloat(d.current) || null, ytd: parseFloat(d.ytd) || null })),
-  }) : null
-
-  const ytdWarning = (() => {
-    if (!form?.ytdGross || !existingPaystubs.length) return null
-    const newYtd = parseFloat(form.ytdGross)
-    const priorYtd = existingPaystubs.find(p => p.ytdGross != null)?.ytdGross
-    if (priorYtd && newYtd < priorYtd) {
-      return `YTD gross ($${newYtd.toFixed(2)}) is less than prior upload ($${priorYtd.toFixed(2)}) — possible misread.`
-    }
-    return null
+  // Real-time reconciliation
+  const recon = (() => {
+    if (!form) return null
+    const gross = parseFloat(form.grossPay) || 0
+    const deds = parseFloat(form.totalDeductions) || form.deductions.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+    const taxes = parseFloat(form.totalTaxes) || form.taxes.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0)
+    const net = parseFloat(form.netPay) || 0
+    if (gross === 0 || net === 0) return null
+    const computed = gross - deds - taxes
+    const diff = Math.abs(computed - net)
+    const ok = diff <= 0.05
+    return { ok, gross, deds, taxes, computed, net, diff }
   })()
+
+  // Helper to update earnings/deductions/taxes arrays
+  function updateEarning(i: number, field: keyof EditableEarning, val: string) {
+    setForm(f => f ? { ...f, earnings: f.earnings.map((e, j) => j === i ? { ...e, [field]: val } : e) } : f)
+  }
+  function updateDeduction(i: number, field: keyof EditableDeduction, val: string) {
+    setForm(f => f ? { ...f, deductions: f.deductions.map((d, j) => j === i ? { ...d, [field]: val } : d) } : f)
+  }
+  function updateTax(i: number, field: keyof EditableTax, val: string) {
+    setForm(f => f ? { ...f, taxes: f.taxes.map((t, j) => j === i ? { ...t, [field]: val } : t) } : f)
+  }
 
   return (
     <Modal open={open} onClose={handleClose} title="Upload Paystub" size="lg">
@@ -359,57 +371,30 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
         </div>
       )}
 
-      {/* ── Step: Upload ───────────────────────────────────────────────────── */}
+      {/* ── Upload ─────────────────────────────────────────────────────────── */}
       {step === 'upload' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            Upload a photo, PDF, or Word document of your paystub. Multi-page files are fully processed. Add multiple files if your paystub spans pages.
+            Upload a photo, PDF, or Word document of your paystub. Only current-period figures are extracted — YTD columns are ignored.
           </p>
-
-          {/* Drop zone */}
           <div
             onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: `2px dashed ${isDragging ? GREEN : 'var(--border)'}`,
-              borderRadius: 12, padding: '32px 24px', textAlign: 'center', cursor: 'pointer',
-              background: isDragging ? 'rgba(6,198,138,0.05)' : 'var(--surface)',
-              transition: 'all 0.15s',
-            }}>
+            style={{ border: `2px dashed ${isDragging ? GREEN : 'var(--border)'}`, borderRadius: 12, padding: '32px 24px', textAlign: 'center', cursor: 'pointer', background: isDragging ? 'rgba(6,198,138,0.05)' : 'var(--surface)', transition: 'all 0.15s' }}>
             <Upload size={28} color={isDragging ? GREEN : 'var(--text-muted)'} style={{ margin: '0 auto 10px' }} />
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-              Drop paystub here, or click to browse
-            </p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              JPG · PNG · WEBP · HEIC (iPhone) · PDF · DOCX · up to 20 MB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.heic,.heif,.pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              multiple
-              hidden
-              onChange={handleFileInput}
-            />
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Drop paystub here, or click to browse</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>JPG · PNG · WEBP · HEIC (iPhone) · PDF · DOCX · up to 20 MB</p>
+            <input ref={fileInputRef} type="file" accept="image/*,.heic,.heif,.pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden onChange={handleFileInput} />
           </div>
 
-          {/* File previews */}
           {queue.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {queue.map((qf, i) => (
-                <FileThumb key={i} qf={qf} index={i} onRemove={() => removeFile(i)} />
-              ))}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  width: 100, height: 130, borderRadius: 8, border: '1px dashed var(--border)',
-                  background: 'var(--surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--text-muted)',
-                }}>
-                <Plus size={18} />
-                <span style={{ fontSize: 10 }}>Add page</span>
+              {queue.map((qf, i) => <FileThumb key={i} qf={qf} index={i} onRemove={() => removeFile(i)} />)}
+              <button onClick={() => fileInputRef.current?.click()}
+                style={{ width: 100, height: 130, borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--text-muted)' }}>
+                <Plus size={18} /><span style={{ fontSize: 10 }}>Add page</span>
               </button>
             </div>
           )}
@@ -423,7 +408,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
         </div>
       )}
 
-      {/* ── Step: Processing ───────────────────────────────────────────────── */}
+      {/* ── Processing ─────────────────────────────────────────────────────── */}
       {step === 'processing' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '32px 0' }}>
           <Loader2 size={36} color={GREEN} style={{ animation: 'spin 1s linear infinite' }} />
@@ -438,35 +423,24 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
         </div>
       )}
 
-      {/* ── Step: Review ───────────────────────────────────────────────────── */}
+      {/* ── Review ─────────────────────────────────────────────────────────── */}
       {step === 'review' && form && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Confidence / method banner */}
+
+          {/* Confidence banner */}
           {parsedRaw && (
-            <div style={{
-              display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', borderRadius: 8,
-              background: parsedRaw.confidence === 'high' ? 'rgba(6,198,138,0.08)' : parsedRaw.confidence === 'medium' ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)',
-              border: `1px solid ${parsedRaw.confidence === 'high' ? GREEN : parsedRaw.confidence === 'medium' ? WARN : DANGER}`,
-            }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', borderRadius: 8, background: parsedRaw.confidence === 'high' ? 'rgba(6,198,138,0.08)' : parsedRaw.confidence === 'medium' ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${parsedRaw.confidence === 'high' ? GREEN : parsedRaw.confidence === 'medium' ? WARN : DANGER}` }}>
               <Info size={14} color={parsedRaw.confidence === 'high' ? GREEN : parsedRaw.confidence === 'medium' ? WARN : DANGER} style={{ flexShrink: 0, marginTop: 1 }} />
               <div style={{ fontSize: 12 }}>
                 <span style={{ fontWeight: 600, color: 'var(--text)' }}>
                   {parsedRaw.confidence === 'high' ? 'Good extraction' : parsedRaw.confidence === 'medium' ? 'Partial extraction' : 'Low confidence'}
                 </span>
-                {extractionMethod && (
-                  <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>via {extractionMethod}</span>
-                )}
+                {extractionMethod && <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>via {extractionMethod}</span>}
                 {' — '}
                 <span style={{ color: 'var(--text-muted)' }}>
-                  {parsedRaw.confidence === 'high'
-                    ? 'Key fields were identified. Review everything before confirming.'
-                    : parsedRaw.confidence === 'medium'
-                    ? 'Some fields found. Please fill in any missing values manually.'
-                    : 'Few fields identified. Please enter all values manually.'}
+                  {parsedRaw.confidence === 'high' ? 'Current-period figures extracted. Review before confirming.' : 'Some fields found. Fill in any missing values.'}
                 </span>
-                {parsedRaw.warnings.map((w, i) => (
-                  <p key={i} style={{ marginTop: 4, color: WARN }}>⚠ {w}</p>
-                ))}
+                {parsedRaw.warnings.map((w, i) => <p key={i} style={{ marginTop: 4, color: WARN }}>⚠ {w}</p>)}
               </div>
             </div>
           )}
@@ -474,167 +448,116 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
           {/* Deduction change alerts */}
           {deductionAlerts.length > 0 && (
             <div style={{ background: 'rgba(245,158,11,0.08)', border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: WARN, marginBottom: 6 }}>⚠ Deduction changes detected vs. your last paystub:</p>
-              {deductionAlerts.map((a, i) => (
-                <p key={i} style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>• {a}</p>
-              ))}
+              <p style={{ fontSize: 12, fontWeight: 600, color: WARN, marginBottom: 6 }}>⚠ Deduction changes vs. last paystub:</p>
+              {deductionAlerts.map((a, i) => <p key={i} style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>• {a}</p>)}
             </div>
           )}
 
-          {/* Consistency check */}
-          {consistencyCheck && !consistencyCheck.ok && (
-            <div style={{ background: 'rgba(239,68,68,0.08)', border: `1px solid ${DANGER}`, borderRadius: 8, padding: '10px 14px' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: DANGER, marginBottom: 4 }}>Numbers don't reconcile</p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{consistencyCheck.message}</p>
-            </div>
-          )}
-
-          {/* YTD warning */}
-          {ytdWarning && (
-            <div style={{ background: 'rgba(245,158,11,0.08)', border: `1px solid ${WARN}`, borderRadius: 8, padding: '10px 14px' }}>
-              <p style={{ fontSize: 12, color: WARN }}>⚠ {ytdWarning}</p>
-            </div>
-          )}
-
-          {/* Confidence legend */}
-          {parsedRaw && Object.keys(parsedRaw.fieldConfidence).length > 0 && (
-            <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-muted)', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600 }}>Field confidence:</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: GREEN, display: 'inline-block' }} /> High — extracted cleanly
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: WARN, display: 'inline-block' }} /> <span style={{ color: WARN, fontWeight: 600 }}>CHECK</span> — verify this value
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: DANGER, display: 'inline-block' }} /> <span style={{ color: DANGER, fontWeight: 600 }}>MISSING</span> — fill in manually
-              </span>
-            </div>
-          )}
-
-          {/* ── Fields ────────────────────────────────────────────────────── */}
-          <SectionLabel>Employer &amp; Dates</SectionLabel>
+          {/* Header */}
+          <SectionLabel>Employer &amp; Pay Period</SectionLabel>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px', gap: 10 }}>
             <Field label="Employer name">
-              <Input value={form.employerName} onChange={e => setField('employerName', e.target.value)} placeholder="e.g. Acme Corp" />
+              <Input value={form.employerName} onChange={e => setForm(f => f ? { ...f, employerName: e.target.value } : f)} placeholder="e.g. Acme Corp" />
             </Field>
             <ConfidenceField label="Pay date" confidence={!form.payDate ? 'low' : parsedRaw?.fieldConfidence['payDate']}>
-              <Input type="date" value={form.payDate} onChange={e => setField('payDate', e.target.value)} />
+              <Input type="date" value={form.payDate} onChange={e => setForm(f => f ? { ...f, payDate: e.target.value } : f)} />
             </ConfidenceField>
             <Field label="Period start">
-              <Input type="date" value={form.periodStart} onChange={e => setField('periodStart', e.target.value)} />
+              <Input type="date" value={form.periodStart} onChange={e => setForm(f => f ? { ...f, periodStart: e.target.value } : f)} />
             </Field>
             <Field label="Period end">
-              <Input type="date" value={form.periodEnd} onChange={e => setField('periodEnd', e.target.value)} />
+              <Input type="date" value={form.periodEnd} onChange={e => setForm(f => f ? { ...f, periodEnd: e.target.value } : f)} />
             </Field>
           </div>
 
-          <SectionLabel>Current Period — Core Pay</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-            {[
-              { label: 'Gross pay', key: 'grossPay' },
-              { label: 'Federal tax', key: 'federalTax' },
-              { label: 'State tax', key: 'stateTax' },
-              { label: 'Social Security', key: 'socialSecurity' },
-              { label: 'Medicare', key: 'medicare' },
-            ].map(({ label, key }) => {
-              const val = (form as any)[key] as string
-              const conf: FieldConfidence = val ? (parsedRaw?.fieldConfidence[key] ?? 'high') : 'low'
-              return (
-                <ConfidenceField key={key} label={label} confidence={conf}>
-                  <Input type="number" min="0" step="0.01" placeholder="0.00"
-                    value={val}
-                    onChange={e => setField(key as keyof EditablePaystub, e.target.value)} />
-                </ConfidenceField>
-              )
-            })}
-          </div>
-
-          <SectionLabel>
-            Net Pay <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>— this becomes your confirmed take-home pay</span>
-          </SectionLabel>
-          <div style={{ maxWidth: 200 }}>
-            <ConfidenceField label="Net pay (take-home)"
-              confidence={form.netPay ? (parsedRaw?.fieldConfidence['netPay'] ?? 'high') : 'low'}>
-              <Input
-                type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.netPay}
-                onChange={e => setField('netPay', e.target.value)}
-                style={{ fontWeight: 700, fontSize: 16 }}
-              />
+          {/* Earnings */}
+          <SectionLabel>Earnings <span style={{ fontWeight: 400, color: 'var(--text-muted)', textTransform: 'none', fontSize: 11, letterSpacing: 0 }}>(current period)</span></SectionLabel>
+          <LineItemTable
+            rows={form.earnings}
+            onChange={(i, field, val) => updateEarning(i, field as keyof EditableEarning, val)}
+            onAdd={() => setForm(f => f ? { ...f, earnings: [...f.earnings, { label: '', amount: '' }] } : f)}
+            onRemove={i => setForm(f => f ? { ...f, earnings: f.earnings.filter((_, j) => j !== i) } : f)}
+          />
+          <div style={{ maxWidth: 220 }}>
+            <ConfidenceField label="Gross Pay" confidence={form.grossPay ? (parsedRaw?.fieldConfidence['grossPay'] ?? 'high') : 'low'}>
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.grossPay}
+                onChange={e => setForm(f => f ? { ...f, grossPay: e.target.value } : f)} style={{ fontWeight: 700 }} />
             </ConfidenceField>
           </div>
-          {consistencyCheck?.ok && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: -8 }}>
-              <CheckCircle size={13} color={GREEN} />
-              <span style={{ fontSize: 12, color: GREEN }}>{consistencyCheck.message}</span>
+
+          {/* Deductions */}
+          <SectionLabel>Deductions <span style={{ fontWeight: 400, color: 'var(--text-muted)', textTransform: 'none', fontSize: 11, letterSpacing: 0 }}>(current period)</span></SectionLabel>
+          <LineItemTable
+            rows={form.deductions}
+            onChange={(i, field, val) => updateDeduction(i, field as keyof EditableDeduction, val)}
+            onAdd={() => setForm(f => f ? { ...f, deductions: [...f.deductions, { name: '', amount: '' }] } : f)}
+            onRemove={i => setForm(f => f ? { ...f, deductions: f.deductions.filter((_, j) => j !== i) } : f)}
+          />
+          <div style={{ maxWidth: 220 }}>
+            <Field label="Total Deductions">
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.totalDeductions}
+                onChange={e => setForm(f => f ? { ...f, totalDeductions: e.target.value } : f)} />
+            </Field>
+          </div>
+
+          {/* Taxes */}
+          <SectionLabel>Taxes Withheld <span style={{ fontWeight: 400, color: 'var(--text-muted)', textTransform: 'none', fontSize: 11, letterSpacing: 0 }}>(current period)</span></SectionLabel>
+          <LineItemTable
+            rows={form.taxes}
+            onChange={(i, field, val) => updateTax(i, field as keyof EditableTax, val)}
+            onAdd={() => setForm(f => f ? { ...f, taxes: [...f.taxes, { label: '', canonicalName: '', amount: '' }] } : f)}
+            onRemove={i => setForm(f => f ? { ...f, taxes: f.taxes.filter((_, j) => j !== i) } : f)}
+            showCanonical
+          />
+          <div style={{ maxWidth: 220 }}>
+            <Field label="Total Taxes Withheld">
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.totalTaxes}
+                onChange={e => setForm(f => f ? { ...f, totalTaxes: e.target.value } : f)} />
+            </Field>
+          </div>
+
+          {/* Reconciliation check */}
+          {recon && (
+            <div style={{ borderRadius: 8, border: `1px solid ${recon.ok ? GREEN : DANGER}`, background: recon.ok ? 'rgba(6,198,138,0.06)' : 'rgba(239,68,68,0.06)', padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: recon.ok ? 0 : 6 }}>
+                {recon.ok
+                  ? <CheckCircle size={14} color={GREEN} />
+                  : <AlertTriangle size={14} color={DANGER} />}
+                <span style={{ fontSize: 12, fontWeight: 700, color: recon.ok ? GREEN : DANGER }}>
+                  {recon.ok ? 'Reconciled ✓' : 'Does not reconcile'}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'monospace' }}>
+                ${recon.gross.toFixed(2)} gross − ${recon.deds.toFixed(2)} deductions − ${recon.taxes.toFixed(2)} taxes = ${recon.computed.toFixed(2)}
+                {!recon.ok && ` (net shows $${recon.net.toFixed(2)}, Δ $${recon.diff.toFixed(2)})`}
+              </p>
             </div>
           )}
 
-          <SectionLabel>Year-to-Date (YTD)</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-            {[
-              { label: 'YTD Gross', key: 'ytdGross' },
-              { label: 'YTD Federal', key: 'ytdFederalTax' },
-              { label: 'YTD State', key: 'ytdStateTax' },
-              { label: 'YTD Soc. Sec.', key: 'ytdSocialSecurity' },
-              { label: 'YTD Medicare', key: 'ytdMedicare' },
-            ].map(({ label, key }) => (
-              <Field key={key} label={label}>
-                <Input type="number" min="0" step="0.01" placeholder="0.00"
-                  value={(form as any)[key]}
-                  onChange={e => setField(key as keyof EditablePaystub, e.target.value)} />
-              </Field>
-            ))}
-          </div>
-          <div style={{ maxWidth: 200 }}>
-            <Field label="YTD Net Pay">
-              <Input type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.ytdNet} onChange={e => setField('ytdNet', e.target.value)} />
-            </Field>
+          {/* Net Pay */}
+          <SectionLabel>Net Pay <span style={{ fontWeight: 400, color: 'var(--text-muted)', textTransform: 'none', fontSize: 11, letterSpacing: 0 }}>— becomes your confirmed take-home pay</span></SectionLabel>
+          <div style={{ maxWidth: 220 }}>
+            <ConfidenceField label="Net Pay (take-home)" confidence={form.netPay ? (parsedRaw?.fieldConfidence['netPay'] ?? 'high') : 'low'}>
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.netPay}
+                onChange={e => setForm(f => f ? { ...f, netPay: e.target.value } : f)}
+                style={{ fontWeight: 700, fontSize: 16 }} />
+            </ConfidenceField>
           </div>
 
-          <SectionLabel>Pre-Tax Deductions</SectionLabel>
-          <ColHeaders />
-          <DeductionRows
-            deductions={form.preTaxDeductions}
-            onChange={(i, field, val) =>
-              setForm(f => f ? { ...f, preTaxDeductions: f.preTaxDeductions.map((d, j) => j === i ? { ...d, [field]: val } : d) } : f)}
-            onAdd={() => setForm(f => f ? { ...f, preTaxDeductions: [...f.preTaxDeductions, { name: '', current: '', ytd: '' }] } : f)}
-            onRemove={i => setForm(f => f ? { ...f, preTaxDeductions: f.preTaxDeductions.filter((_, j) => j !== i) } : f)}
-          />
-
-          <SectionLabel>Post-Tax Deductions</SectionLabel>
-          <ColHeaders />
-          <DeductionRows
-            deductions={form.postTaxDeductions}
-            onChange={(i, field, val) =>
-              setForm(f => f ? { ...f, postTaxDeductions: f.postTaxDeductions.map((d, j) => j === i ? { ...d, [field]: val } : d) } : f)}
-            onAdd={() => setForm(f => f ? { ...f, postTaxDeductions: [...f.postTaxDeductions, { name: '', current: '', ytd: '' }] } : f)}
-            onRemove={i => setForm(f => f ? { ...f, postTaxDeductions: f.postTaxDeductions.filter((_, j) => j !== i) } : f)}
-          />
-
-          {(form.ptoAccrued || form.ptoUsed || form.ptoRemaining) ? (
+          {/* PTO */}
+          {(form.ptoAccrued || form.ptoUsed || form.ptoRemaining) && (
             <>
               <SectionLabel>PTO / Vacation Balance</SectionLabel>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, maxWidth: 360 }}>
-                <Field label="Accrued (hrs)">
-                  <Input type="number" min="0" step="0.01" value={form.ptoAccrued} onChange={e => setField('ptoAccrued', e.target.value)} />
-                </Field>
-                <Field label="Used (hrs)">
-                  <Input type="number" min="0" step="0.01" value={form.ptoUsed} onChange={e => setField('ptoUsed', e.target.value)} />
-                </Field>
-                <Field label="Remaining (hrs)">
-                  <Input type="number" min="0" step="0.01" value={form.ptoRemaining} onChange={e => setField('ptoRemaining', e.target.value)} />
-                </Field>
+                <Field label="Accrued (hrs)"><Input type="number" min="0" step="0.01" value={form.ptoAccrued} onChange={e => setForm(f => f ? { ...f, ptoAccrued: e.target.value } : f)} /></Field>
+                <Field label="Used (hrs)"><Input type="number" min="0" step="0.01" value={form.ptoUsed} onChange={e => setForm(f => f ? { ...f, ptoUsed: e.target.value } : f)} /></Field>
+                <Field label="Remaining (hrs)"><Input type="number" min="0" step="0.01" value={form.ptoRemaining} onChange={e => setForm(f => f ? { ...f, ptoRemaining: e.target.value } : f)} /></Field>
               </div>
             </>
-          ) : null}
+          )}
 
           <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-            <Button
-              onClick={confirmSave}
-              disabled={saving || !form.netPay || parseFloat(form.netPay) <= 0}
+            <Button onClick={confirmSave} disabled={saving || !form.netPay || parseFloat(form.netPay) <= 0}
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {saving ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : <><CheckCircle size={14} /> Confirm &amp; set as take-home pay</>}
             </Button>
@@ -644,7 +567,7 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
         </div>
       )}
 
-      {/* ── Step: Done ─────────────────────────────────────────────────────── */}
+      {/* ── Done ───────────────────────────────────────────────────────────── */}
       {step === 'done' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '32px 0', textAlign: 'center' }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(6,198,138,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -652,59 +575,11 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
           </div>
           <div>
             <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Paystub confirmed!</p>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Your take-home pay has been updated and the paystub saved to your history.
-            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Your take-home pay has been updated and the paystub saved to your history.</p>
           </div>
           <Button onClick={handleClose}>Done</Button>
         </div>
       )}
     </Modal>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: -6 }}>
-      {children}
-    </p>
-  )
-}
-
-function ColHeaders() {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 28px', gap: 6 }}>
-      {['Name', 'Current period', 'YTD', ''].map(h => (
-        <span key={h} style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
-      ))}
-    </div>
-  )
-}
-
-function fmtAmt(n: number): string { return `$${n.toFixed(2)}` }
-
-/** Wraps a Field with a confidence-based border/background hint */
-function ConfidenceField({
-  label, confidence, children,
-}: { label: string; confidence?: FieldConfidence; children: React.ReactNode }) {
-  const border = confidence === 'high' ? undefined
-    : confidence === 'medium' ? `1px solid ${WARN}`
-    : confidence === 'low' ? `1px solid ${DANGER}`
-    : undefined
-  const bg = confidence === 'medium' ? 'rgba(245,158,11,0.06)'
-    : confidence === 'low' ? 'rgba(239,68,68,0.06)'
-    : undefined
-  return (
-    <div style={{ borderRadius: 6, border, background: bg, padding: border ? '4px 6px 2px' : undefined }}>
-      <Field label={
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {label}
-          {confidence === 'medium' && <span title="Verify — matched via OCR noise correction" style={{ fontSize: 9, background: WARN, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>CHECK</span>}
-          {confidence === 'low' && <span title="Not found — please fill in manually" style={{ fontSize: 9, background: DANGER, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>MISSING</span>}
-        </span>
-      }>
-        {children}
-      </Field>
-    </div>
   )
 }

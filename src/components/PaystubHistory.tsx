@@ -241,50 +241,104 @@ export function PaystubHistory({ paystubs, currencySymbol, onDeleted }: Props) {
                 {/* Expanded detail */}
                 {isExpanded && (
                   <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', background: 'var(--background)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
-                      {/* Current period */}
-                      <div>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Current Period</p>
-                        {[
-                          { label: 'Gross Pay', val: p.grossPay },
-                          { label: 'Federal Tax', val: p.federalTax },
-                          { label: 'State Tax', val: p.stateTax },
-                          { label: 'Social Security', val: p.socialSecurity },
-                          { label: 'Medicare', val: p.medicare },
-                          ...p.preTaxDeductions.map(d => ({ label: `${d.name} (pre-tax)`, val: d.current })),
-                          ...p.postTaxDeductions.map(d => ({ label: `${d.name} (post-tax)`, val: d.current })),
-                          { label: 'Net Pay', val: p.netPay, bold: true },
-                        ].filter(r => r.val != null).map(({ label, val, bold }) => (
-                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
-                            <span style={{ fontSize: 12, fontWeight: bold ? 700 : 400, color: bold ? GREEN : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                              {fmt(val as number, sym)}
-                            </span>
+                    {/* New structured paystub (has earnings/deductions/taxes arrays) */}
+                    {(p.earnings?.length || p.deductions?.length || p.taxes?.length) ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {p.earnings && p.earnings.length > 0 && (
+                          <div>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Earnings</p>
+                            {p.earnings.map(e => (
+                              <div key={e.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{e.label}</span>
+                                <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(e.amount, sym)}</span>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Gross Pay</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(p.grossPay, sym)}</span>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                      {/* YTD */}
-                      <div>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Year-to-Date</p>
-                        {[
-                          { label: 'YTD Gross', val: p.ytdGross },
-                          { label: 'YTD Federal', val: p.ytdFederalTax },
-                          { label: 'YTD State', val: p.ytdStateTax },
-                          { label: 'YTD Soc. Security', val: p.ytdSocialSecurity },
-                          { label: 'YTD Medicare', val: p.ytdMedicare },
-                          ...p.preTaxDeductions.map(d => ({ label: `YTD ${d.name}`, val: d.ytd })),
-                          ...p.postTaxDeductions.map(d => ({ label: `YTD ${d.name}`, val: d.ytd })),
-                          { label: 'YTD Net', val: p.ytdNet, bold: true },
-                        ].filter(r => r.val != null).map(({ label, val, bold }) => (
-                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
-                            <span style={{ fontSize: 12, fontWeight: bold ? 700 : 400, color: bold ? GREEN : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                              {fmt(val as number, sym)}
-                            </span>
+                        )}
+                        {p.deductions && p.deductions.length > 0 && (
+                          <div>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Deductions</p>
+                            {p.deductions.map(d => (
+                              <div key={d.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{d.name}</span>
+                                <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(d.amount, sym)}</span>
+                              </div>
+                            ))}
+                            {p.totalDeductions != null && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Total Deductions</span>
+                                <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(p.totalDeductions, sym)}</span>
+                              </div>
+                            )}
                           </div>
-                        ))}
+                        )}
+                        {p.taxes && p.taxes.length > 0 && (
+                          <div>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Taxes Withheld</p>
+                            {p.taxes.map(t => (
+                              <div key={t.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.label} <span style={{ fontSize: 11 }}>({t.canonicalName})</span></span>
+                                <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(t.amount, sym)}</span>
+                              </div>
+                            ))}
+                            {p.totalTaxes != null && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderTop: '1px solid var(--border)', marginTop: 4 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Total Taxes</span>
+                                <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text)' }}>{fmt(p.totalTaxes, sym)}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '2px solid var(--border)' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Net Pay</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: GREEN }}>{fmt(p.netPay, sym)}</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      /* Legacy paystub (old flat structure) */
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Current Period</p>
+                          {[
+                            { label: 'Gross Pay', val: p.grossPay },
+                            { label: 'Federal Tax', val: p.federalTax },
+                            { label: 'State Tax', val: p.stateTax },
+                            { label: 'Social Security', val: p.socialSecurity },
+                            { label: 'Medicare', val: p.medicare },
+                            ...(p.preTaxDeductions ?? []).map(d => ({ label: `${d.name} (pre-tax)`, val: d.current })),
+                            ...(p.postTaxDeductions ?? []).map(d => ({ label: `${d.name} (post-tax)`, val: d.current })),
+                            { label: 'Net Pay', val: p.netPay, bold: true },
+                          ].filter(r => r.val != null).map(({ label, val, bold }) => (
+                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
+                              <span style={{ fontSize: 12, fontWeight: bold ? 700 : 400, color: bold ? GREEN : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(val as number, sym)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Year-to-Date</p>
+                          {[
+                            { label: 'YTD Gross', val: p.ytdGross },
+                            { label: 'YTD Federal', val: p.ytdFederalTax },
+                            { label: 'YTD State', val: p.ytdStateTax },
+                            { label: 'YTD Soc. Security', val: p.ytdSocialSecurity },
+                            { label: 'YTD Medicare', val: p.ytdMedicare },
+                            ...(p.preTaxDeductions ?? []).map(d => ({ label: `YTD ${d.name}`, val: d.ytd })),
+                            ...(p.postTaxDeductions ?? []).map(d => ({ label: `YTD ${d.name}`, val: d.ytd })),
+                            { label: 'YTD Net', val: p.ytdNet, bold: true },
+                          ].filter(r => r.val != null).map(({ label, val, bold }) => (
+                            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
+                              <span style={{ fontSize: 12, fontWeight: bold ? 700 : 400, color: bold ? GREEN : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(val as number, sym)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* PTO */}
                     {(p.ptoAccrued != null || p.ptoUsed != null || p.ptoRemaining != null) && (

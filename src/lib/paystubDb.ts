@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { Paystub, PaystubJob } from '../types'
+import { Paystub, PaystubJob, PaystubEarning, PaystubLineItem, PaystubTax } from '../types'
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
 
@@ -63,19 +63,25 @@ export async function savePaystub(p: Paystub, userId: string): Promise<Paystub> 
       period_start: p.periodStart ?? null,
       period_end: p.periodEnd ?? null,
       gross_pay: p.grossPay ?? null,
+      net_pay: p.netPay ?? null,
+      earnings: p.earnings ?? [],
+      deductions: p.deductions ?? [],
+      taxes: p.taxes ?? [],
+      total_deductions: p.totalDeductions ?? null,
+      total_taxes: p.totalTaxes ?? null,
+      // Legacy fields preserved for backward compat
       federal_tax: p.federalTax ?? null,
       state_tax: p.stateTax ?? null,
       social_security: p.socialSecurity ?? null,
       medicare: p.medicare ?? null,
-      net_pay: p.netPay ?? null,
       ytd_gross: p.ytdGross ?? null,
       ytd_federal_tax: p.ytdFederalTax ?? null,
       ytd_state_tax: p.ytdStateTax ?? null,
       ytd_social_security: p.ytdSocialSecurity ?? null,
       ytd_medicare: p.ytdMedicare ?? null,
       ytd_net: p.ytdNet ?? null,
-      pre_tax_deductions: p.preTaxDeductions,
-      post_tax_deductions: p.postTaxDeductions,
+      pre_tax_deductions: p.preTaxDeductions ?? [],
+      post_tax_deductions: p.postTaxDeductions ?? [],
       pto_accrued: p.ptoAccrued ?? null,
       pto_used: p.ptoUsed ?? null,
       pto_remaining: p.ptoRemaining ?? null,
@@ -102,11 +108,17 @@ function mapRow(r: any): Paystub {
     periodStart: r.period_start ?? undefined,
     periodEnd: r.period_end ?? undefined,
     grossPay: r.gross_pay != null ? Number(r.gross_pay) : undefined,
+    netPay: r.net_pay != null ? Number(r.net_pay) : undefined,
+    earnings: (r.earnings ?? []) as PaystubEarning[],
+    deductions: (r.deductions ?? []) as PaystubLineItem[],
+    taxes: (r.taxes ?? []) as PaystubTax[],
+    totalDeductions: r.total_deductions != null ? Number(r.total_deductions) : undefined,
+    totalTaxes: r.total_taxes != null ? Number(r.total_taxes) : undefined,
+    // Legacy fields
     federalTax: r.federal_tax != null ? Number(r.federal_tax) : undefined,
     stateTax: r.state_tax != null ? Number(r.state_tax) : undefined,
     socialSecurity: r.social_security != null ? Number(r.social_security) : undefined,
     medicare: r.medicare != null ? Number(r.medicare) : undefined,
-    netPay: r.net_pay != null ? Number(r.net_pay) : undefined,
     ytdGross: r.ytd_gross != null ? Number(r.ytd_gross) : undefined,
     ytdFederalTax: r.ytd_federal_tax != null ? Number(r.ytd_federal_tax) : undefined,
     ytdStateTax: r.ytd_state_tax != null ? Number(r.ytd_state_tax) : undefined,

@@ -20,8 +20,19 @@ export type FileKind =
   | 'docx'       // DOCX/DOC Word document
   | 'unsupported'
 
+/** Word with bounding-box position from Tesseract OCR */
+export interface LayoutWord {
+  text: string
+  x: number        // x0 of bounding box (pixels)
+  y: number        // y-center of bounding box
+  w: number        // width (x1 - x0)
+  h: number        // height (y1 - y0)
+  confidence: number
+}
+
 export interface ExtractionResult {
   text: string
+  layoutWords?: LayoutWord[]   // present for image/OCR paths; absent for text-PDF/DOCX
   method: string
   warnings: string[]
 }
@@ -83,6 +94,8 @@ export async function extractText(
   const warnings: string[] = []
   const parts: string[] = []
   const methods: string[] = []
+  const allLayoutWords: LayoutWord[] = []
+  let yOffset = 0
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
@@ -95,21 +108,27 @@ export async function extractText(
 
     let text = ''
     let method = ''
+    let pageWords: LayoutWord[] = []
 
     if (kind === 'image') {
       onProgress(`Preprocessing image ${label}…`, 5)
-      text = await ocrImage(file, (s, p) => onProgress(s, p))
+      const ocr = await ocrImage(file, (s, p) => onProgress(s, p))
+      text = ocr.text
+      pageWords = ocr.words
       method = 'image OCR'
     } else if (kind === 'heic') {
       onProgress(`Converting HEIC photo ${label}…`, 5)
       const jpeg = await convertHeic(file)
       onProgress(`Preprocessing converted ${label}…`, 15)
-      text = await ocrImage(jpeg, (s, p) => onProgress(s, p))
+      const ocr = await ocrImage(jpeg, (s, p) => onProgress(s, p))
+      text = ocr.text
+      pageWords = ocr.words
       method = 'HEIC → JPEG → OCR'
     } else if (kind === 'pdf') {
       onProgress(`Extracting text from PDF ${label}…`, 5)
       const result = await extractPdf(file, (s, p) => onProgress(s, p))
       text = result.text
+      pageWords = result.words ?? []
       method = result.method
       if (result.warnings.length) warnings.push(...result.warnings)
     } else if (kind === 'docx') {
@@ -120,6 +139,12 @@ export async function extractText(
 
     parts.push(text)
     methods.push(method)
+
+    if (pageWords.length > 0) {
+      const pageMaxY = Math.max(...pageWords.map(w => w.y + w.h / 2))
+      pageWords.forEach(w => allLayoutWords.push({ ...w, y: w.y + yOffset }))
+      yOffset += pageMaxY + 100
+    }
   }
 
   const combined = parts.join('\n---PAGE BREAK---\n')
@@ -130,6 +155,7 @@ export async function extractText(
 
   return {
     text: combined,
+    layoutWords: allLayoutWords.length > 0 ? allLayoutWords : undefined,
     method: [...new Set(methods)].join(', '),
     warnings,
   }
@@ -345,7 +371,12 @@ async function preprocessImage(blob: Blob): Promise<Blob> {
 
 // ── Image OCR (Tesseract.js) ──────────────────────────────────────────────────
 
-async function ocrImage(file: File | Blob, onProgress: ProgressCallback): Promise<string> {
+interface OcrResult {
+  text: string
+  words: LayoutWord[]
+}
+
+async function ocrImage(file: File | Blob, onProgress: ProgressCallback): Promise<OcrResult> {
   const preprocessed = await preprocessImage(file)
 
   const { createWorker } = await import('tesseract.js')
@@ -358,9 +389,20 @@ async function ocrImage(file: File | Blob, onProgress: ProgressCallback): Promis
   const { data } = await worker.recognize(preprocessed)
   await worker.terminate()
 
-  // Prefer layout-reconstructed text; fall back to raw if reconstruction yields nothing
+  // Export position-aware word list for layout-aware parsing
+  const words: LayoutWord[] = (data.words ?? [])
+    .filter((w: any) => w.confidence >= 15 && w.text.trim())
+    .map((w: any) => ({
+      text: w.text,
+      x: w.bbox.x0,
+      y: (w.bbox.y0 + w.bbox.y1) / 2,
+      w: w.bbox.x1 - w.bbox.x0,
+      h: w.bbox.y1 - w.bbox.y0,
+      confidence: w.confidence,
+    }))
+
   const layoutText = reconstructLayoutText(data.words ?? [])
-  return layoutText.trim() ? layoutText : data.text
+  return { text: layoutText.trim() ? layoutText : data.text, words }
 }
 
 // ── HEIC conversion ───────────────────────────────────────────────────────────
@@ -376,7 +418,7 @@ async function convertHeic(file: File): Promise<Blob> {
 async function extractPdf(
   file: File,
   onProgress: ProgressCallback
-): Promise<{ text: string; method: string; warnings: string[] }> {
+): Promise<{ text: string; words?: LayoutWord[]; method: string; warnings: string[] }> {
   const warnings: string[] = []
 
   const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
@@ -409,6 +451,8 @@ async function extractPdf(
   // Pass 2: scanned PDF — render each page to canvas then OCR
   warnings.push('PDF appears to be a scanned image — using OCR (slower, may be less accurate).')
   const ocrParts: string[] = []
+  const allWords: LayoutWord[] = []
+  let yOffset = 0
   for (let p = 1; p <= numPages; p++) {
     onProgress(`OCR-ing scanned PDF page ${p}/${numPages}…`, 50 + Math.round((p / numPages) * 40))
     const page = await pdf.getPage(p)
@@ -421,14 +465,20 @@ async function extractPdf(
     const blob = await new Promise<Blob>((res, rej) =>
       canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas toBlob failed')), 'image/png')
     )
-    const pageText = await ocrImage(blob, (s, pct) =>
+    const ocrResult = await ocrImage(blob, (s, pct) =>
       onProgress(`OCR page ${p}: ${s}`, 50 + Math.round((p / numPages) * 40) + Math.round(pct * 0.1))
     )
-    ocrParts.push(pageText)
+    ocrParts.push(ocrResult.text)
+    if (ocrResult.words.length > 0) {
+      const pageMaxY = Math.max(...ocrResult.words.map(w => w.y + w.h / 2))
+      ocrResult.words.forEach(w => allWords.push({ ...w, y: w.y + yOffset }))
+      yOffset += pageMaxY + 100
+    }
   }
 
   return {
     text: ocrParts.join('\n---PAGE BREAK---\n'),
+    words: allWords.length > 0 ? allWords : undefined,
     method: 'scanned PDF → OCR',
     warnings,
   }
