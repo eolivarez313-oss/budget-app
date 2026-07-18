@@ -165,7 +165,7 @@ export function PaystubHistory({ paystubs, currencySymbol, onDeleted }: Props) {
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${sym}${(v / 1000).toFixed(1)}k`} />
                 <Tooltip
-                  formatter={(v: number, name: string) => [fmt(v, sym), name === 'gross' ? 'Gross Pay' : 'Net Pay']}
+                  formatter={(v: number | string | Array<number | string>, name: string) => [fmt(typeof v === 'number' ? v : 0, sym), name === 'gross' ? 'Gross Pay' : 'Net Pay']}
                   contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                 />
                 <Legend formatter={(v) => v === 'gross' ? 'Gross Pay' : 'Net Pay'} iconType="circle" iconSize={8}

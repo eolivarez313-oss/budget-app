@@ -12,6 +12,7 @@ export interface ParsedPaystub {
   payDate?: string
   periodStart?: string
   periodEnd?: string
+  rawText?: string
   grossPay?: number | null
   federalTax?: number | null
   stateTax?: number | null
@@ -231,8 +232,8 @@ export function parsePaystubText(rawText: string): ParsedPaystub {
     if (/pay\s+period/i.test(lower)) {
       const dates = (line.match(/\d{1,2}\/\d{1,2}\/\d{4}/g) || [])
       if (dates.length >= 2) {
-        if (!result.periodStart) result.periodStart = extractDate(dates[0])
-        if (!result.periodEnd) result.periodEnd = extractDate(dates[1])
+        if (!result.periodStart) result.periodStart = extractDate(dates[0] as string)
+        if (!result.periodEnd) result.periodEnd = extractDate(dates[1] as string)
       }
       const isoDate = extractDate(line)
       if (isoDate && !result.payDate) result.payDate = isoDate
