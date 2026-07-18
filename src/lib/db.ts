@@ -77,6 +77,7 @@ export async function loadState(userId: string): Promise<AppState | null> {
     preTaxHealthcareAnnual: s.pre_tax_healthcare_annual ? Number(s.pre_tax_healthcare_annual) : 0,
     netMonthlyIncome: s.net_monthly_income ? Number(s.net_monthly_income) : undefined,
     netHourlyRate: s.net_hourly_rate ? Number(s.net_hourly_rate) : undefined,
+    paycheckSource: s.paycheck_source ?? undefined,
   } : { currency: 'USD', currencySymbol: '$', theme: 'dark', name: 'My Budget', dashboardWidgets: [] }
 
   return {
@@ -198,6 +199,7 @@ export async function saveSettings(s: AppSettings, userId: string, dayOverrides?
     pre_tax_healthcare_annual: s.preTaxHealthcareAnnual ?? 0,
     net_monthly_income: s.netMonthlyIncome ?? null,
     net_hourly_rate: s.netHourlyRate ?? null,
+    paycheck_source: s.paycheckSource ?? null,
   }, { onConflict: 'user_id' })
 }
 

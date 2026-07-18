@@ -109,6 +109,53 @@ export interface AppSettings {
   // Computed net figures (cached from last tax calculation)
   netMonthlyIncome?: number
   netHourlyRate?: number
+  // Paystub confirmation source label (e.g. "Paystub — ACME Corp, Jan 15 2026")
+  paycheckSource?: string
+}
+
+// ── Paystub types ─────────────────────────────────────────────────────────────
+
+export interface PaystubDeduction {
+  name: string
+  current: number | null
+  ytd: number | null
+}
+
+export interface Paystub {
+  id: string
+  jobId?: string | null
+  employerName?: string
+  payDate?: string
+  periodStart?: string
+  periodEnd?: string
+  grossPay?: number | null
+  federalTax?: number | null
+  stateTax?: number | null
+  socialSecurity?: number | null
+  medicare?: number | null
+  netPay?: number | null
+  ytdGross?: number | null
+  ytdFederalTax?: number | null
+  ytdStateTax?: number | null
+  ytdSocialSecurity?: number | null
+  ytdMedicare?: number | null
+  ytdNet?: number | null
+  preTaxDeductions: PaystubDeduction[]
+  postTaxDeductions: PaystubDeduction[]
+  ptoAccrued?: number | null
+  ptoUsed?: number | null
+  ptoRemaining?: number | null
+  rawText?: string
+  isConfirmed?: boolean
+  createdAt?: string
+}
+
+export interface PaystubJob {
+  id: string
+  employerName: string
+  isActive: boolean
+  payFrequency?: string
+  createdAt?: string
 }
 
 // Legacy single-workspace state

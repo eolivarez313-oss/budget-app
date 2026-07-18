@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Plus, Trash2, Edit2, Download, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Plus, Trash2, Edit2, Download, Check, ChevronDown, ChevronUp, Upload, FileText, Clock } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -8,12 +8,21 @@ import { IconButton } from '../components/ui/IconButton'
 import { Input, Select, Field } from '../components/ui/Input'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { TaxBreakdown } from '../components/TaxBreakdown'
+import { PaystubUpload } from '../components/PaystubUpload'
+import { PaystubHistory } from '../components/PaystubHistory'
 import { calculateTaxes, US_STATES, FilingStatus } from '../lib/taxes'
-import { Category } from '../types'
+import { loadPaystubs } from '../lib/paystubDb'
+import { Category, Paystub } from '../types'
 import { uuid } from '../utils/uuid'
+import { supabase } from '../lib/supabase'
 
 const GREEN = '#06C68A'
 const NAVY = '#1A1F36'
+
+function fmtPayDate(d: string): string {
+  try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+  catch { return d }
+}
 
 const ICONS = ['🛒','🍽️','🚗','🎬','🛍️','⚡','💪','🏠','💰','💻','📈','✈️','🏥','📚','🎮','☕','🐕','👶','🎁','🔧','📱','🏋️','🎵','🍺']
 
@@ -119,6 +128,64 @@ function CategoryModal({ open, onClose, initial }: { open: boolean; onClose: () 
 export function Settings() {
   const { state, dispatch } = useStore()
   const s = state.settings
+
+  // ── Paystub state ────────────────────────────────────────────────────────────
+  const [paystubs, setPaystubs] = useState<Paystub[]>([])
+  const [paystubsLoading, setPaystubsLoading] = useState(true)
+  const [showPaystubUpload, setShowPaystubUpload] = useState(false)
+  const [showPaystubHistory, setShowPaystubHistory] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserId(user.id)
+        loadPaystubs(user.id)
+          .then(ps => setPaystubs(ps))
+          .catch(() => {})
+          .finally(() => setPaystubsLoading(false))
+      } else {
+        setPaystubsLoading(false)
+      }
+    })
+  }, [])
+
+  function handlePaystubConfirmed(paystub: Paystub) {
+    // Add to local list (most recent first)
+    setPaystubs(prev => {
+      const filtered = prev.filter(p => p.payDate !== paystub.payDate || p.employerName !== paystub.employerName)
+      return [paystub, ...filtered].sort((a, b) => {
+        if (!a.payDate || !b.payDate) return 0
+        return a.payDate > b.payDate ? -1 : 1
+      })
+    })
+    // Propagate net pay as the confirmed take-home (single source of truth)
+    if (paystub.netPay) {
+      const perPeriod = paystub.netPay
+      const ppm = PERIODS_PER_MONTH[payFrequency] ?? 1
+      const monthly = perPeriod * ppm
+      const netHourly = grossAnnual > 0 && (s.hourlyRate ?? 0) > 0
+        ? (monthly * 12) / (grossAnnual / (s.hourlyRate ?? 1))
+        : undefined
+      const sourceLabel = [
+        'Paystub',
+        paystub.employerName,
+        paystub.payDate ? fmtPayDate(paystub.payDate) : null,
+      ].filter(Boolean).join(' — ')
+      dispatch({
+        type: 'UPDATE_SETTINGS',
+        payload: {
+          paycheckAmount: perPeriod,
+          monthlyIncome: monthly,
+          netMonthlyIncome: monthly,
+          paycheckSource: sourceLabel,
+          ...(netHourly !== undefined ? { netHourlyRate: netHourly } : {}),
+        },
+      })
+      setActualPaycheck(perPeriod.toFixed(2))
+    }
+    setShowPaystubUpload(false)
+  }
 
   // ── General ──────────────────────────────────────────────────────────────────
   const [budgetName, setBudgetName] = useState(s.name)
@@ -468,9 +535,23 @@ export function Settings() {
             </div>
           )}
 
+          {/* Paystub source label */}
+          {s.paycheckSource && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <FileText size={12} color={GREEN} />
+              <span style={{ fontSize: 11, color: GREEN, fontWeight: 500 }}>{s.paycheckSource}</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Button onClick={saveIncome} disabled={!actualPaycheck || parseFloat(actualPaycheck) <= 0}>
               {incomeSaved ? <><Check size={14} /> Saved!</> : 'Save take-home pay'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setShowPaystubUpload(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Upload size={13} /> Upload paystub
             </Button>
             {taxBreakdown && (
               <Button variant="secondary" onClick={() => setActualPaycheck(taxBreakdown.netPay.toFixed(2))}>
@@ -545,6 +626,106 @@ export function Settings() {
         )}
       </Card>
 
+      {/* ── PTO Widget ──────────────────────────────────────────────────────── */}
+      {(() => {
+        const latestWithPto = paystubs.find(p => p.ptoRemaining != null || p.ptoAccrued != null)
+        if (!latestWithPto) return null
+        return (
+          <Card style={{ padding: '16px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>PTO / Vacation Balance</p>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  From {latestWithPto.employerName ?? 'paystub'} · {latestWithPto.payDate ? fmtPayDate(latestWithPto.payDate) : ''}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 20 }}>
+                {latestWithPto.ptoAccrued != null && (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Accrued</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{latestWithPto.ptoAccrued}h</p>
+                  </div>
+                )}
+                {latestWithPto.ptoUsed != null && (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Used</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{latestWithPto.ptoUsed}h</p>
+                  </div>
+                )}
+                {latestWithPto.ptoRemaining != null && (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: GREEN }}>{latestWithPto.ptoRemaining}h</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        )
+      })()}
+
+      {/* ── Paystub History ──────────────────────────────────────────────────── */}
+      <Card style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>Paystub History</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {paystubs.length > 0 ? `${paystubs.length} paystub${paystubs.length !== 1 ? 's' : ''} uploaded` : 'No paystubs yet'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button size="sm" onClick={() => setShowPaystubUpload(true)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Upload size={11} /> Upload
+            </Button>
+            {paystubs.length > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => setShowPaystubHistory(h => !h)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={11} /> {showPaystubHistory ? 'Hide' : 'View all'}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {paystubsLoading && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading…</p>
+        )}
+
+        {!paystubsLoading && paystubs.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <FileText size={28} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Upload your first paystub to confirm your exact take-home pay and start tracking history.</p>
+          </div>
+        )}
+
+        {!paystubsLoading && paystubs.length > 0 && !showPaystubHistory && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)' }}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                Latest: {fmtPayDate(paystubs[0].payDate ?? '')}
+                {paystubs[0].employerName ? ` · ${paystubs[0].employerName}` : ''}
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                Net {paystubs[0].netPay != null ? `${currencySymbol || '$'}${paystubs[0].netPay.toFixed(2)}` : '—'}
+                {paystubs[0].grossPay != null ? ` · Gross ${currencySymbol || '$'}${paystubs[0].grossPay.toFixed(2)}` : ''}
+              </p>
+            </div>
+            {paystubs[0].ytdGross != null && (
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>YTD Gross</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{currencySymbol || '$'}{paystubs[0].ytdGross.toFixed(2)}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {showPaystubHistory && (
+          <PaystubHistory
+            paystubs={paystubs}
+            currencySymbol={currencySymbol || '$'}
+            onDeleted={id => setPaystubs(prev => prev.filter(p => p.id !== id))}
+          />
+        )}
+      </Card>
+
       {/* ── Categories ───────────────────────────────────────────────────────── */}
       <Card style={{ padding: '18px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -593,6 +774,16 @@ export function Settings() {
             })}
           </div>
         </Card>
+      )}
+
+      {showPaystubUpload && userId && (
+        <PaystubUpload
+          open
+          onClose={() => setShowPaystubUpload(false)}
+          userId={userId}
+          existingPaystubs={paystubs}
+          onConfirmed={handlePaystubConfirmed}
+        />
       )}
 
       {showCatModal && <CategoryModal open onClose={() => setShowCatModal(false)} />}
