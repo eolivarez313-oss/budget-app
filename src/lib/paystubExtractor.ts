@@ -225,7 +225,8 @@ async function extractPdf(
     canvas.width = viewport.width
     canvas.height = viewport.height
     const ctx = canvas.getContext('2d')!
-    await page.render({ canvasContext: ctx, viewport }).promise
+    // pdfjs-dist v6 uses `canvas` + `transform`; v5 used `canvasContext`
+    await page.render({ canvasContext: ctx as any, canvas, viewport }).promise
     const blob = await new Promise<Blob>((res, rej) =>
       canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas toBlob failed')), 'image/png')
     )
