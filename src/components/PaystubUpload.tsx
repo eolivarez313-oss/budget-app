@@ -3,7 +3,7 @@ import { Upload, X, Plus, AlertTriangle, CheckCircle, ChevronRight, Loader2, Fil
 import { Modal } from './ui/Modal'
 import { Button } from './ui/Button'
 import { Input, Field } from './ui/Input'
-import { parsePaystubText, checkConsistency, ParsedPaystub } from '../lib/paystubParser'
+import { parsePaystubText, checkConsistency, ParsedPaystub, FieldConfidence } from '../lib/paystubParser'
 import { detectKind, validateFile, extractText, FileKind } from '../lib/paystubExtractor'
 import { savePaystub } from '../lib/paystubDb'
 import { Paystub, PaystubDeduction } from '../types'
@@ -496,15 +496,31 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
             </div>
           )}
 
+          {/* Confidence legend */}
+          {parsedRaw && Object.keys(parsedRaw.fieldConfidence).length > 0 && (
+            <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-muted)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600 }}>Field confidence:</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: GREEN, display: 'inline-block' }} /> High — extracted cleanly
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: WARN, display: 'inline-block' }} /> <span style={{ color: WARN, fontWeight: 600 }}>CHECK</span> — verify this value
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: DANGER, display: 'inline-block' }} /> <span style={{ color: DANGER, fontWeight: 600 }}>MISSING</span> — fill in manually
+              </span>
+            </div>
+          )}
+
           {/* ── Fields ────────────────────────────────────────────────────── */}
           <SectionLabel>Employer &amp; Dates</SectionLabel>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px 140px', gap: 10 }}>
             <Field label="Employer name">
               <Input value={form.employerName} onChange={e => setField('employerName', e.target.value)} placeholder="e.g. Acme Corp" />
             </Field>
-            <Field label="Pay date">
+            <ConfidenceField label="Pay date" confidence={!form.payDate ? 'low' : parsedRaw?.fieldConfidence['payDate']}>
               <Input type="date" value={form.payDate} onChange={e => setField('payDate', e.target.value)} />
-            </Field>
+            </ConfidenceField>
             <Field label="Period start">
               <Input type="date" value={form.periodStart} onChange={e => setField('periodStart', e.target.value)} />
             </Field>
@@ -521,27 +537,32 @@ export function PaystubUpload({ open, onClose, userId, existingPaystubs, onConfi
               { label: 'State tax', key: 'stateTax' },
               { label: 'Social Security', key: 'socialSecurity' },
               { label: 'Medicare', key: 'medicare' },
-            ].map(({ label, key }) => (
-              <Field key={key} label={label}>
-                <Input type="number" min="0" step="0.01" placeholder="0.00"
-                  value={(form as any)[key]}
-                  onChange={e => setField(key as keyof EditablePaystub, e.target.value)} />
-              </Field>
-            ))}
+            ].map(({ label, key }) => {
+              const val = (form as any)[key] as string
+              const conf: FieldConfidence = val ? (parsedRaw?.fieldConfidence[key] ?? 'high') : 'low'
+              return (
+                <ConfidenceField key={key} label={label} confidence={conf}>
+                  <Input type="number" min="0" step="0.01" placeholder="0.00"
+                    value={val}
+                    onChange={e => setField(key as keyof EditablePaystub, e.target.value)} />
+                </ConfidenceField>
+              )
+            })}
           </div>
 
           <SectionLabel>
             Net Pay <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>— this becomes your confirmed take-home pay</span>
           </SectionLabel>
           <div style={{ maxWidth: 200 }}>
-            <Field label="Net pay (take-home)">
+            <ConfidenceField label="Net pay (take-home)"
+              confidence={form.netPay ? (parsedRaw?.fieldConfidence['netPay'] ?? 'high') : 'low'}>
               <Input
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={form.netPay}
                 onChange={e => setField('netPay', e.target.value)}
                 style={{ fontWeight: 700, fontSize: 16 }}
               />
-            </Field>
+            </ConfidenceField>
           </div>
           {consistencyCheck?.ok && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: -8 }}>
@@ -661,3 +682,29 @@ function ColHeaders() {
 }
 
 function fmtAmt(n: number): string { return `$${n.toFixed(2)}` }
+
+/** Wraps a Field with a confidence-based border/background hint */
+function ConfidenceField({
+  label, confidence, children,
+}: { label: string; confidence?: FieldConfidence; children: React.ReactNode }) {
+  const border = confidence === 'high' ? undefined
+    : confidence === 'medium' ? `1px solid ${WARN}`
+    : confidence === 'low' ? `1px solid ${DANGER}`
+    : undefined
+  const bg = confidence === 'medium' ? 'rgba(245,158,11,0.06)'
+    : confidence === 'low' ? 'rgba(239,68,68,0.06)'
+    : undefined
+  return (
+    <div style={{ borderRadius: 6, border, background: bg, padding: border ? '4px 6px 2px' : undefined }}>
+      <Field label={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {label}
+          {confidence === 'medium' && <span title="Verify — matched via OCR noise correction" style={{ fontSize: 9, background: WARN, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>CHECK</span>}
+          {confidence === 'low' && <span title="Not found — please fill in manually" style={{ fontSize: 9, background: DANGER, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 700 }}>MISSING</span>}
+        </span>
+      }>
+        {children}
+      </Field>
+    </div>
+  )
+}

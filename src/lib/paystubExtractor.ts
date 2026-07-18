@@ -156,16 +156,66 @@ export async function extractText(
   }
 }
 
+// ── Image preprocessing ───────────────────────────────────────────────────────
+
+/**
+ * Preprocess an image blob before OCR:
+ *  1. Decode onto a canvas
+ *  2. Upscale if smaller than 1800px wide (low-res photos hurt recognition badly)
+ *  3. Convert to grayscale
+ *  4. Boost contrast via histogram stretching
+ * Returns a new PNG blob suitable for Tesseract.
+ */
+async function preprocessImage(blob: Blob): Promise<Blob> {
+  const img = await createImageBitmap(blob)
+  const MIN_WIDTH = 1800
+  const scale = img.width < MIN_WIDTH ? MIN_WIDTH / img.width : 1
+  const w = Math.round(img.width * scale)
+  const h = Math.round(img.height * scale)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, 0, 0, w, h)
+  img.close()
+
+  const imageData = ctx.getImageData(0, 0, w, h)
+  const d = imageData.data
+
+  // Grayscale + find min/max for contrast stretch
+  let lo = 255, hi = 0
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])
+    d[i] = d[i + 1] = d[i + 2] = gray
+    if (gray < lo) lo = gray
+    if (gray > hi) hi = gray
+  }
+
+  // Contrast stretch: remap [lo, hi] → [0, 255]
+  const range = hi - lo || 1
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.round(((d[i] - lo) / range) * 255)
+    d[i] = d[i + 1] = d[i + 2] = Math.max(0, Math.min(255, v))
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+  return new Promise<Blob>((res, rej) =>
+    canvas.toBlob(b => b ? res(b) : rej(new Error('Preprocessing canvas toBlob failed')), 'image/png')
+  )
+}
+
 // ── Image OCR (Tesseract.js) ──────────────────────────────────────────────────
 
 async function ocrImage(file: File | Blob, onProgress: ProgressCallback): Promise<string> {
+  const preprocessed = await preprocessImage(file)
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker('eng', 1, {
     logger: (m: { status: string; progress: number }) => {
       onProgress(m.status, Math.round((m.progress || 0) * 100))
     },
   })
-  const { data } = await worker.recognize(file)
+  const { data } = await worker.recognize(preprocessed)
   await worker.terminate()
   return data.text
 }
@@ -220,7 +270,7 @@ async function extractPdf(
   for (let p = 1; p <= numPages; p++) {
     onProgress(`OCR-ing scanned PDF page ${p}/${numPages}…`, 50 + Math.round((p / numPages) * 40))
     const page = await pdf.getPage(p)
-    const viewport = page.getViewport({ scale: 2.0 })
+    const viewport = page.getViewport({ scale: 3.0 })
     const canvas = document.createElement('canvas')
     canvas.width = viewport.width
     canvas.height = viewport.height

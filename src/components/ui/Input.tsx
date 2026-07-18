@@ -13,7 +13,7 @@ const base: React.CSSProperties = {
   transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
 }
 
-interface FieldProps { label?: string; error?: string; children: ReactNode }
+interface FieldProps { label?: ReactNode; error?: string; children: ReactNode }
 export function Field({ label, error, children }: FieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
