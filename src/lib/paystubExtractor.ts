@@ -187,8 +187,9 @@ async function extractPdf(
   const warnings: string[] = []
 
   const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
-  // Use CDN worker — avoids bundling the heavy worker into the main chunk
-  GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`
+  // Import the worker as a Vite asset URL so main lib and worker are always the same version
+  const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  GlobalWorkerOptions.workerSrc = workerUrl
 
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await getDocument({ data: arrayBuffer }).promise
